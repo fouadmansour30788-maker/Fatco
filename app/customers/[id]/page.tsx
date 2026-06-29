@@ -54,6 +54,14 @@ export default async function CustomerDetailPage({
               <Row label="Phone" value={customer.phone ?? "—"} />
               <Row label="Email" value={customer.email ?? "—"} />
               <Row label="Company" value={customer.companyName ?? "—"} />
+              <Row
+                label="Location"
+                value={
+                  [customer.subDistrict, customer.district, customer.governorate]
+                    .filter(Boolean)
+                    .join(", ") || "—"
+                }
+              />
               <Row label="Address" value={customer.address ?? "—"} />
               <Row
                 label="WhatsApp"

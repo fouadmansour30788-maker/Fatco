@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createCustomer } from "../actions";
 import PageHeader from "../../components/PageHeader";
+import LocationSelect from "../../components/LocationSelect";
 
 export default function NewCustomerPage() {
   return (
@@ -33,11 +34,21 @@ export default function NewCustomerPage() {
                 <label className="label">Email</label>
                 <input name="email" type="email" className="input" />
               </div>
-              <div>
-                <label className="label">Address</label>
-                <input name="address" className="input" placeholder="Tripoli…" />
-              </div>
             </div>
+
+            <div>
+              <label className="label">Location</label>
+              <LocationSelect />
+            </div>
+            <div>
+              <label className="label">Address details (optional)</label>
+              <input
+                name="address"
+                className="input"
+                placeholder="Street, building, landmark…"
+              />
+            </div>
+
             <div>
               <label className="label">Notes</label>
               <textarea name="notes" className="input" rows={2} />

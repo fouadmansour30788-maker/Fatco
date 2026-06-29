@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { formatMoney, formatDate } from "@/lib/format";
 import PageHeader from "../components/PageHeader";
 import StatCard from "../components/StatCard";
+import LebanonMapClient from "../components/LebanonMapClient";
+import { ALL_DISTRICTS } from "@/lib/lebanon";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,7 @@ export default async function DashboardPage() {
     topCustomerGroups,
     recent,
     monthly,
+    customersByDistrict,
   ] = await Promise.all([
     prisma.transaction.findMany({
       where: { status: "COMPLETED" },
@@ -60,7 +63,26 @@ export default async function DashboardPage() {
       where: { status: "COMPLETED", date: { gte: startOfDaysAgo(180) } },
       select: { date: true, total: true },
     }),
+    prisma.customer.groupBy({
+      by: ["district"],
+      where: { district: { not: null } },
+      _count: { _all: true },
+    }),
   ]);
+
+  // Map customer counts onto Lebanese district coordinates.
+  const countByDistrict = new Map(
+    customersByDistrict.map((g) => [g.district as string, g._count._all])
+  );
+  const mapPoints = ALL_DISTRICTS.map((d) => ({
+    name: d.name,
+    ar: d.ar,
+    governorate: d.governorate,
+    lat: d.lat,
+    lng: d.lng,
+    count: countByDistrict.get(d.name) ?? 0,
+  })).filter((p) => p.count > 0);
+  const mappedCustomers = mapPoints.reduce((s, p) => s + p.count, 0);
 
   const revenue30 = tx30.reduce((s, t) => s + t.total, 0);
   const profit30 = tx30.reduce((s, t) => s + (t.total - t.cost), 0);
@@ -184,6 +206,59 @@ export default async function DashboardPage() {
                 </li>
               ))}
             </ul>
+          </div>
+        </div>
+
+        {/* Customers map */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="card p-5 lg:col-span-2">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-zinc-700">
+                Customers by location
+              </h2>
+              <span className="text-xs text-zinc-400">
+                {mappedCustomers} mapped
+              </span>
+            </div>
+            <div className="h-80 w-full overflow-hidden rounded-xl">
+              {mapPoints.length > 0 ? (
+                <LebanonMapClient points={mapPoints} />
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-xl bg-zinc-50 text-sm text-zinc-400">
+                  No customer locations yet — add a governorate/district on
+                  customer profiles to see them here.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="card p-5">
+            <h2 className="mb-4 text-sm font-semibold text-zinc-700">
+              Top regions
+            </h2>
+            {mapPoints.length === 0 ? (
+              <p className="text-sm text-zinc-400">No location data yet.</p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {[...mapPoints]
+                  .sort((a, b) => b.count - a.count)
+                  .slice(0, 8)
+                  .map((p) => (
+                    <li
+                      key={`${p.governorate}-${p.name}`}
+                      className="flex items-center justify-between border-t border-zinc-50 py-1.5 first:border-0"
+                    >
+                      <span>
+                        {p.name}
+                        <span className="ml-1 text-xs text-zinc-400">
+                          {p.governorate}
+                        </span>
+                      </span>
+                      <span className="font-medium">{p.count}</span>
+                    </li>
+                  ))}
+              </ul>
+            )}
           </div>
         </div>
 

@@ -31,7 +31,10 @@ model Customer {
   companyName   String?
   phone         String? // future WhatsApp key
   email         String?
-  address       String?
+  governorate   String? // Lebanese محافظة
+  district      String? // قضاء
+  subDistrict   String? // town / area
+  address       String? // optional extra street detail
   notes         String?
   whatsappOptIn Boolean  @default(false) // Phase 2 hook
   portalPin     String? // client-portal access PIN (set by staff)
