@@ -36,15 +36,6 @@ export default async function RemindersPage() {
           />
         </div>
 
-        {provider.name !== "whatsapp" && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            WhatsApp isn&apos;t configured yet, so &ldquo;Send&rdquo; logs the
-            message to the server console instead of delivering it. Add the Meta
-            WhatsApp credentials to <code>.env</code> and sending goes live
-            automatically — no code changes.
-          </div>
-        )}
-
         <div className="card overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 text-left text-xs text-zinc-500">
