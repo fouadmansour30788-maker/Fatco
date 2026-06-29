@@ -47,8 +47,14 @@ gh repo create fatco-crm --private --source=. --push
    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    ```
 
-4. Click **Deploy**. The build runs `prisma migrate deploy` (creates all tables) then
-   `next build`. First deploy takes a couple of minutes.
+4. Click **Deploy**. First deploy takes a couple of minutes.
+
+> **Database setup is done separately, not during the build** (build-time connections to a
+> sleeping serverless DB are flaky). Apply the schema once from your machine with the
+> Neon `DATABASE_URL` in `.env`:
+> ```bash
+> npm run db:deploy
+> ```
 
 > You can set `NEXT_PUBLIC_APP_URL` after the first deploy once you know the URL,
 > then redeploy.
@@ -99,6 +105,6 @@ npm run dev
   business use consider Vercel **Pro** (~$20/mo).
 - To enable **WhatsApp reminders**, add `WHATSAPP_TOKEN` + `WHATSAPP_PHONE_ID`
   (from a verified Meta WhatsApp Business account) as Vercel env vars and redeploy.
-- Schema changes: run `npm run db:migrate -- --name your_change` locally (against a dev
-  DB), commit the new folder under `prisma/migrations/`, and push — Vercel applies it on
-  the next build.
+- Schema changes: run `npm run db:migrate -- --name your_change` locally to create the
+  migration, then apply it to production with `npm run db:deploy` (with the production
+  `DATABASE_URL` in `.env`). Commit the new folder under `prisma/migrations/` and push.
