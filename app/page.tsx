@@ -1,65 +1,131 @@
-import Image from "next/image";
+import Link from "next/link";
+import { Droplet, CircleDot, Gift, Bell, ArrowRight } from "lucide-react";
+import Car3DClient from "./components/Car3DClient";
+import { getSession } from "@/lib/session";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+export const metadata = {
+  title: "FATCO — Oil, Tyres & Car Care · Tripoli",
+  description:
+    "FATCO (Ahmad Fawzi Fathalla EST.) — oil changes, tyres and car services in Tripoli. Track your service history and loyalty rewards.",
+};
+
+const SERVICES = [
+  { icon: Droplet, title: "Oil changes", desc: "Quality oils & filters, done fast." },
+  { icon: CircleDot, title: "Tyres & wheels", desc: "Fitting, balancing and alignment." },
+  { icon: Gift, title: "Loyalty rewards", desc: "Earn points — every 5th oil change free." },
+  { icon: Bell, title: "Smart reminders", desc: "We tell you when you're due." },
+];
+
+export default async function LandingPage() {
+  const session = await getSession();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-zinc-950 text-white">
+      {/* Top bar */}
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
+        <div className="flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand font-bold">
+            F
+          </div>
+          <div className="leading-tight">
+            <div className="text-sm font-bold tracking-tight">FATCO</div>
+            <div className="text-[11px] text-zinc-400">Ahmad Fawzi Fathalla EST.</div>
+          </div>
+        </div>
+        <nav className="flex items-center gap-3 text-sm">
+          <Link
+            href="/portal/login"
+            className="rounded-lg px-3 py-2 text-zinc-300 hover:text-white"
+          >
+            Customer portal
+          </Link>
+          {session ? (
+            <Link href="/dashboard" className="btn-brand">
+              Open dashboard
+            </Link>
+          ) : (
+            <Link href="/login" className="btn-brand">
+              Staff sign in
+            </Link>
+          )}
+        </nav>
+      </header>
+
+      {/* Hero */}
+      <section className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-6 px-6 pb-10 pt-6 lg:grid-cols-2 lg:pt-12">
+        {/* glow */}
+        <div className="pointer-events-none absolute left-1/2 top-1/3 h-72 w-72 -translate-x-1/2 rounded-full bg-brand/30 blur-[120px]" />
+
+        <div className="relative z-10">
+          <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300">
+            Tripoli · Lebanon
+          </span>
+          <h1 className="mt-4 text-4xl font-bold leading-tight tracking-tight sm:text-5xl">
+            Keep your car
+            <span className="text-brand"> running smoothly</span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="mt-4 max-w-md text-zinc-300">
+            Oil, tyres and full car care — for individuals and fleets. Track every
+            service, collect loyalty rewards, and never miss a change again.
           </p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <Link href="/portal/login" className="btn-brand">
+              My account <ArrowRight size={16} />
+            </Link>
+            <Link
+              href={session ? "/dashboard" : "/login"}
+              className="btn inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
+            >
+              {session ? "Open dashboard" : "Staff sign in"}
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* 3D car */}
+        <div className="relative z-10 h-[340px] w-full sm:h-[420px] lg:h-[460px]">
+          <Car3DClient />
         </div>
-      </main>
+      </section>
+
+      {/* Services */}
+      <section className="mx-auto max-w-6xl px-6 py-14">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {SERVICES.map(({ icon: Icon, title, desc }) => (
+            <div
+              key={title}
+              className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition-colors hover:border-brand/40"
+            >
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-brand/15 text-brand">
+                <Icon size={20} />
+              </div>
+              <h3 className="font-semibold">{title}</h3>
+              <p className="mt-1 text-sm text-zinc-400">{desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="mx-auto max-w-6xl px-6 pb-20">
+        <div className="overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-brand/20 to-transparent p-8 sm:p-12">
+          <h2 className="text-2xl font-bold sm:text-3xl">
+            Already a FATCO customer?
+          </h2>
+          <p className="mt-2 max-w-lg text-zinc-300">
+            View your full service history, loyalty points and rewards in the
+            customer portal. Ask our team for your access PIN.
+          </p>
+          <Link href="/portal/login" className="btn-brand mt-6 inline-flex">
+            Go to customer portal <ArrowRight size={16} />
+          </Link>
+        </div>
+      </section>
+
+      <footer className="border-t border-white/10 py-6 text-center text-xs text-zinc-500">
+        © {new Date().getFullYear()} FATCO — Ahmad Fawzi Fathalla EST. · Tripoli,
+        Lebanon
+      </footer>
     </div>
   );
 }

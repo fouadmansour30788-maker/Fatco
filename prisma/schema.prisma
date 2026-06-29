@@ -1,0 +1,266 @@
+// FATCO CRM — Phase 1 schema (back-office core) with Phase 2 hooks (portal + WhatsApp).
+// Portability note: we avoid native enums and arrays so the same schema runs on
+// SQLite (local dev) and Postgres (prod). "Enum" values are documented inline.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Auth / Staff ----------
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("STAFF") // OWNER | MANAGER | STAFF
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ---------- Customers & Vehicles ----------
+model Customer {
+  id            String   @id @default(cuid())
+  type          String   @default("INDIVIDUAL") // INDIVIDUAL (B2C) | BUSINESS (B2B)
+  name          String
+  companyName   String?
+  phone         String? // future WhatsApp key
+  email         String?
+  address       String?
+  notes         String?
+  whatsappOptIn Boolean  @default(false) // Phase 2 hook
+  portalPin     String? // client-portal access PIN (set by staff)
+  pointsBalance Int      @default(0) // cached loyalty balance
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  vehicles       Vehicle[]
+  transactions   Transaction[]
+  loyaltyEntries LoyaltyLedger[]
+  rewards        Reward[]
+
+  @@index([phone])
+  @@index([type])
+}
+
+model Vehicle {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  make       String?
+  model      String?
+  year       Int?
+  plate      String?
+  vin        String?
+  mileage    Int? // last recorded odometer
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  transactions Transaction[]
+  reminders    ServiceReminder[]
+
+  @@index([customerId])
+  @@index([plate])
+}
+
+// ---------- Catalog & Inventory ----------
+model Item {
+  id           String   @id @default(cuid())
+  sku          String?  @unique
+  name         String
+  category     String? // OIL | TYRE | FILTER | LABOR | OTHER
+  unit         String   @default("pcs")
+  costPrice    Float    @default(0)
+  salePrice    Float    @default(0)
+  stockQty     Float    @default(0)
+  reorderLevel Float    @default(0)
+  trackStock   Boolean  @default(true) // false for services/labor
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  movements        InventoryMovement[]
+  transactionLines TransactionLine[]
+
+  @@index([category])
+}
+
+model InventoryMovement {
+  id        String   @id @default(cuid())
+  itemId    String
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  type      String // PURCHASE | SALE | ADJUSTMENT | RETURN
+  qty       Float // signed: + in, - out
+  unitCost  Float?
+  reference String? // transaction id or note
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([itemId])
+  @@index([type])
+}
+
+// ---------- Services ----------
+model ServiceType {
+  id                   String   @id @default(cuid())
+  name                 String   @unique // Oil Change, Wheel Installation...
+  category             String? // OIL | WHEEL | OTHER
+  reminderIntervalDays Int? // Phase 2 reminder default
+  reminderIntervalKm   Int? // Phase 2 reminder default
+  active               Boolean  @default(true)
+  createdAt            DateTime @default(now())
+
+  transactionLines TransactionLine[]
+  loyaltyRules     LoyaltyRule[]
+  reminders        ServiceReminder[]
+}
+
+// ---------- Transactions (sales / services) ----------
+model Transaction {
+  id               String    @id @default(cuid())
+  number           Int?      @unique // human-friendly sequential no., assigned in app
+  customerId       String?
+  customer         Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  vehicleId        String?
+  vehicle          Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  status           String    @default("COMPLETED") // DRAFT | COMPLETED | VOID
+  date             DateTime  @default(now())
+  mileageAtService Int?
+  subtotal         Float     @default(0)
+  discount         Float     @default(0)
+  tax              Float     @default(0)
+  total            Float     @default(0)
+  cost             Float     @default(0) // profit = total - cost
+  paymentMethod    String? // CASH | CARD | TRANSFER | CREDIT
+  notes            String?
+  createdById      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  lines          TransactionLine[]
+  loyaltyEntries LoyaltyLedger[]
+
+  @@index([customerId])
+  @@index([date])
+  @@index([status])
+}
+
+model TransactionLine {
+  id            String       @id @default(cuid())
+  transactionId String
+  transaction   Transaction  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  itemId        String?
+  item          Item?        @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  serviceTypeId String?
+  serviceType   ServiceType? @relation(fields: [serviceTypeId], references: [id], onDelete: SetNull)
+  description   String
+  qty           Float        @default(1)
+  unitPrice     Float        @default(0)
+  unitCost      Float        @default(0)
+  lineTotal     Float        @default(0)
+
+  @@index([transactionId])
+  @@index([itemId])
+}
+
+// ---------- Loyalty ----------
+model LoyaltyRule {
+  id                String       @id @default(cuid())
+  name              String
+  type              String // PUNCH_CARD | POINTS_PER_AMOUNT
+  serviceTypeId     String? // punch card: which service counts
+  serviceType       ServiceType? @relation(fields: [serviceTypeId], references: [id], onDelete: SetNull)
+  threshold         Int? // punch card: count needed for reward (e.g. 5)
+  rewardDescription String? // "1 free oil change"
+  rewardValue       Float? // $ discount applied when the reward is redeemed
+  pointsPerAmount   Float? // points earned per currency unit spent
+  active            Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  rewards Reward[]
+}
+
+// Issued punch-card rewards (vouchers) — created automatically when a customer
+// reaches a rule threshold, redeemable on a future sale.
+model Reward {
+  id           String       @id @default(cuid())
+  customerId   String
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  ruleId       String?
+  rule         LoyaltyRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  description  String
+  value        Float        @default(0) // discount granted on redemption
+  status       String       @default("AVAILABLE") // AVAILABLE | REDEEMED | EXPIRED
+  issuedTxId   String?
+  redeemedTxId String?
+  createdAt    DateTime     @default(now())
+  redeemedAt   DateTime?
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model LoyaltyLedger {
+  id            String       @id @default(cuid())
+  customerId    String
+  customer      Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  transactionId String?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  type          String // EARN | REDEEM | ADJUST
+  points        Int          @default(0) // signed
+  note          String?
+  createdAt     DateTime     @default(now())
+
+  @@index([customerId])
+}
+
+// ---------- Offers ----------
+model Offer {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  discountType  String // PERCENT | AMOUNT
+  discountValue Float
+  startDate     DateTime?
+  endDate       DateTime?
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+}
+
+// ---------- Expenses ----------
+model Expense {
+  id        String   @id @default(cuid())
+  date      DateTime @default(now())
+  category  String // e.g. Rent, Salaries, Stock Purchase, Utilities
+  type      String   @default("DIRECT") // DIRECT | INDIRECT
+  amount    Float
+  vendor    String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([date])
+  @@index([type])
+}
+
+// ---------- Phase 2: WhatsApp reminders ----------
+model ServiceReminder {
+  id             String       @id @default(cuid())
+  vehicleId      String
+  vehicle        Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  serviceTypeId  String?
+  serviceType    ServiceType? @relation(fields: [serviceTypeId], references: [id], onDelete: SetNull)
+  dueDate        DateTime?
+  dueMileage     Int?
+  status         String       @default("PENDING") // PENDING | SENT | DONE | CANCELLED
+  lastNotifiedAt DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([vehicleId])
+  @@index([dueDate])
+}
