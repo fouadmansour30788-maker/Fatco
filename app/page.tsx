@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Droplet, CircleDot, Gift, Bell, ArrowRight } from "lucide-react";
 import Car3DClient from "./components/Car3DClient";
-import { getSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -17,9 +16,7 @@ const SERVICES = [
   { icon: Bell, title: "Smart reminders", desc: "We tell you when you're due." },
 ];
 
-export default async function LandingPage() {
-  const session = await getSession();
-
+export default function LandingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-zinc-950 text-white">
       {/* Top bar */}
@@ -40,15 +37,9 @@ export default async function LandingPage() {
           >
             Customer portal
           </Link>
-          {session ? (
-            <Link href="/dashboard" className="btn-brand">
-              Open dashboard
-            </Link>
-          ) : (
-            <Link href="/login" className="btn-brand">
-              Staff sign in
-            </Link>
-          )}
+          <Link href="/login" className="btn-brand">
+            Staff / Admin login
+          </Link>
         </nav>
       </header>
 
@@ -71,13 +62,13 @@ export default async function LandingPage() {
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Link href="/portal/login" className="btn-brand">
-              My account <ArrowRight size={16} />
+              Customer portal <ArrowRight size={16} />
             </Link>
             <Link
-              href={session ? "/dashboard" : "/login"}
+              href="/login"
               className="btn inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
             >
-              {session ? "Open dashboard" : "Staff sign in"}
+              Staff / Admin login
             </Link>
           </div>
         </div>
