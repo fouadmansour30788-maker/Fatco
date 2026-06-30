@@ -8,25 +8,31 @@ import { toggleRule, deleteRule } from "./actions";
 export const dynamic = "force-dynamic";
 
 export default async function LoyaltyPage() {
-  const [rules, services, topCustomers, availableRewards] = await Promise.all([
-    prisma.loyaltyRule.findMany({
-      include: { serviceType: true },
-      orderBy: { createdAt: "asc" },
-    }),
-    prisma.serviceType.findMany({
-      where: { active: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.customer.findMany({
-      orderBy: { pointsBalance: "desc" },
-      take: 8,
-    }),
-    prisma.reward.findMany({
-      where: { status: "AVAILABLE" },
-      include: { customer: true },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
+  const [rules, services, topCustomers, availableRewards, items] =
+    await Promise.all([
+      prisma.loyaltyRule.findMany({
+        include: { serviceType: true },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.serviceType.findMany({
+        where: { active: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.customer.findMany({
+        orderBy: { pointsBalance: "desc" },
+        take: 8,
+      }),
+      prisma.reward.findMany({
+        where: { status: "AVAILABLE" },
+        include: { customer: true },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.item.findMany({
+        where: { active: true },
+        orderBy: { name: "asc" },
+        select: { name: true },
+      }),
+    ]);
 
   return (
     <>
@@ -136,7 +142,10 @@ export default async function LoyaltyPage() {
         <div className="space-y-6">
           <div className="card p-5">
             <h3 className="mb-4 text-sm font-semibold text-zinc-700">New rule</h3>
-            <RuleForm services={services.map((s) => ({ id: s.id, name: s.name }))} />
+            <RuleForm
+              services={services.map((s) => ({ id: s.id, name: s.name }))}
+              items={items.map((i) => i.name)}
+            />
           </div>
 
           <div className="card p-5">

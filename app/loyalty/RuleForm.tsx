@@ -5,13 +5,25 @@ import { createRule } from "./actions";
 
 type ServiceOpt = { id: string; name: string };
 
-export default function RuleForm({ services }: { services: ServiceOpt[] }) {
+export default function RuleForm({
+  services,
+  items,
+}: {
+  services: ServiceOpt[];
+  items: string[];
+}) {
   const [type, setType] = useState<"PUNCH_CARD" | "POINTS_PER_AMOUNT">(
     "PUNCH_CARD"
   );
 
   return (
     <form action={createRule} className="space-y-3">
+      <datalist id="rule-items">
+        {items.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+
       <div>
         <label className="label">Rule type</label>
         <select
@@ -30,8 +42,10 @@ export default function RuleForm({ services }: { services: ServiceOpt[] }) {
         <input
           name="name"
           required
+          list="rule-items"
+          autoComplete="off"
           className="input"
-          placeholder="e.g. Oil Change Punch Card"
+          placeholder="Pick an item or type a name…"
         />
       </div>
 
@@ -39,8 +53,10 @@ export default function RuleForm({ services }: { services: ServiceOpt[] }) {
         <label className="label">Reward description</label>
         <input
           name="rewardDescription"
+          list="rule-items"
+          autoComplete="off"
           className="input"
-          placeholder="e.g. 1 free oil change"
+          placeholder="Pick the free item or type…"
         />
       </div>
 
