@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import Sidebar from "./components/Sidebar";
+import AppShell from "./components/AppShell";
 import { getSession } from "@/lib/session";
 import { getRolePermissions } from "@/lib/permissions-server";
 import { SECTIONS, sectionForPath, roleCanAccess, type Role } from "@/lib/permissions";
@@ -52,13 +52,12 @@ export default async function RootLayout({
     >
       <body className="min-h-full">
         {session ? (
-          <div className="flex min-h-screen">
-            <Sidebar
-              user={{ name: session.name, role: session.role }}
-              allowedSections={allowedSections}
-            />
-            <main className="flex-1 overflow-x-hidden">{children}</main>
-          </div>
+          <AppShell
+            user={{ name: session.name, role: session.role }}
+            allowedSections={allowedSections}
+          >
+            {children}
+          </AppShell>
         ) : (
           children
         )}

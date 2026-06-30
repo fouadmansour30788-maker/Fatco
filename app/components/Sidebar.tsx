@@ -34,15 +34,23 @@ const NAV = [
 export default function Sidebar({
   user,
   allowedSections,
+  open = false,
+  onClose,
 }: {
   user: { name: string; role: string };
   allowedSections: string[];
+  open?: boolean;
+  onClose?: () => void;
 }) {
   const pathname = usePathname();
   const allowed = new Set(allowedSections);
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-zinc-200 bg-white">
+    <aside
+      className={`fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col border-r border-zinc-200 bg-white transition-transform duration-200 lg:static lg:z-auto lg:translate-x-0 ${
+        open ? "translate-x-0" : "-translate-x-full"
+      }`}
+    >
       <div className="flex items-center gap-2 border-b border-zinc-200 px-5 py-4">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand font-bold text-white">
           F
@@ -60,6 +68,7 @@ export default function Sidebar({
             <Link
               key={href}
               href={href}
+              onClick={onClose}
               className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                 active
                   ? "bg-brand/10 text-brand"
