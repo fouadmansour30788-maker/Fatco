@@ -44,17 +44,19 @@ export default function ItemForm({
         </div>
         <div>
           <label className="label">Category</label>
-          <select
+          <input
             name="category"
-            defaultValue={values.category ?? "OTHER"}
+            list="item-categories"
+            defaultValue={values.category ?? ""}
             className="input"
-          >
+            placeholder="Pick from list or type your own…"
+            autoComplete="off"
+          />
+          <datalist id="item-categories">
             {ITEM_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
+              <option key={c} value={c} />
             ))}
-          </select>
+          </datalist>
         </div>
         <div>
           <label className="label">Unit</label>

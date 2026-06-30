@@ -10,13 +10,32 @@ export const CUSTOMER_TYPE_LABEL: Record<CustomerType, string> = {
   BUSINESS: "Business (B2B)",
 };
 
+// Suggested item categories (the form lets staff pick one OR type a custom one).
 export const ITEM_CATEGORIES = [
-  "OIL",
-  "TYRE",
-  "FILTER",
-  "BATTERY",
-  "LABOR",
-  "OTHER",
+  "Engine Oil",
+  "Gear / Transmission Oil",
+  "Grease & Lubricants",
+  "Brake Fluid",
+  "Coolant / Antifreeze",
+  "Additives",
+  "Tyres",
+  "Tubes",
+  "Rims / Wheels",
+  "Wheel Alignment & Balancing",
+  "Battery",
+  "Oil Filter",
+  "Air Filter",
+  "Fuel Filter",
+  "Cabin Filter",
+  "Spark Plugs",
+  "Belts",
+  "Brake Pads & Discs",
+  "Wipers",
+  "Bulbs & Electrical",
+  "Accessories",
+  "Tools & Equipment",
+  "Labor / Service",
+  "Other",
 ] as const;
 export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
 
