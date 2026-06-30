@@ -65,7 +65,7 @@ export default function ItemForm({
           />
         </div>
         <div>
-          <label className="label">Reorder level</label>
+          <label className="label">Reorder Level - Minimum Stock</label>
           <input
             name="reorderLevel"
             type="number"
