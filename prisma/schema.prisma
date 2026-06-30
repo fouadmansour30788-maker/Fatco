@@ -251,6 +251,13 @@ model Expense {
   @@index([type])
 }
 
+// ---------- App settings (key/value JSON) ----------
+model Setting {
+  key       String   @id
+  value     String // JSON
+  updatedAt DateTime @updatedAt
+}
+
 // ---------- Phase 2: WhatsApp reminders ----------
 model ServiceReminder {
   id             String       @id @default(cuid())

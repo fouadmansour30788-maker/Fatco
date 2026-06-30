@@ -16,7 +16,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { logout } from "../login/actions";
-import { canAccess } from "@/lib/permissions";
+import { sectionForPath } from "@/lib/permissions";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -33,10 +33,13 @@ const NAV = [
 
 export default function Sidebar({
   user,
+  allowedSections,
 }: {
   user: { name: string; role: string };
+  allowedSections: string[];
 }) {
   const pathname = usePathname();
+  const allowed = new Set(allowedSections);
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-zinc-200 bg-white">
@@ -51,7 +54,7 @@ export default function Sidebar({
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
-        {NAV.filter(({ href }) => canAccess(user.role, href)).map(({ href, label, icon: Icon }) => {
+        {NAV.filter(({ href }) => allowed.has(sectionForPath(href) ?? "")).map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href);
           return (
             <Link

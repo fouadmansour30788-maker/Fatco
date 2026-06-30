@@ -4,9 +4,25 @@ import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
-import { type Role } from "@/lib/permissions";
+import { type Role, CONFIGURABLE_SECTIONS } from "@/lib/permissions";
+import { setRolePermissions } from "@/lib/permissions-server";
 
 const ROLES: Role[] = ["OWNER", "MANAGER", "STAFF"];
+
+// Save the Manager/Staff section permissions matrix.
+export async function updateRolePermissions(formData: FormData) {
+  await requireRole(["OWNER"]);
+  const collect = (role: "MANAGER" | "STAFF") =>
+    CONFIGURABLE_SECTIONS.filter(
+      (s) => formData.get(`perm:${role}:${s.key}`) === "on"
+    ).map((s) => s.key);
+  await setRolePermissions({
+    MANAGER: collect("MANAGER"),
+    STAFF: collect("STAFF"),
+  });
+  revalidatePath("/staff");
+  revalidatePath("/dashboard");
+}
 
 export async function createUser(formData: FormData) {
   await requireRole(["OWNER"]);

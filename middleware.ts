@@ -5,7 +5,6 @@ import {
   verifySessionToken,
   verifyPortalToken,
 } from "@/lib/auth";
-import { canAccess } from "@/lib/permissions";
 
 const PUBLIC_PATHS = ["/login"];
 
@@ -46,9 +45,8 @@ export async function middleware(req: NextRequest) {
   if (session && pathname === "/login") {
     return redirectTo(req, "/dashboard");
   }
-  if (session && !isPublic && !canAccess(session.role, pathname)) {
-    return redirectTo(req, "/dashboard");
-  }
+  // Section-level permission enforcement happens in the root layout (it can read
+  // the configurable permissions from the DB; middleware runs on the edge).
 
   return pass();
 }

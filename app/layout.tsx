@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import Sidebar from "./components/Sidebar";
 import { getSession } from "@/lib/session";
+import { getRolePermissions } from "@/lib/permissions-server";
+import { SECTIONS, sectionForPath, roleCanAccess, type Role } from "@/lib/permissions";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,6 +33,18 @@ export default async function RootLayout({
   const noChrome = pathname === "/" || pathname.startsWith("/portal");
   const session = noChrome ? null : await getSession();
 
+  let allowedSections: string[] = [];
+  if (session) {
+    const role = session.role as Role;
+    const perms = await getRolePermissions();
+    // Enforce configured permissions for the current section.
+    const section = sectionForPath(pathname);
+    if (!roleCanAccess(role, section, perms)) redirect("/dashboard");
+    allowedSections = SECTIONS.filter((s) =>
+      roleCanAccess(role, s.key, perms)
+    ).map((s) => s.key);
+  }
+
   return (
     <html
       lang="en"
@@ -38,7 +53,10 @@ export default async function RootLayout({
       <body className="min-h-full">
         {session ? (
           <div className="flex min-h-screen">
-            <Sidebar user={{ name: session.name, role: session.role }} />
+            <Sidebar
+              user={{ name: session.name, role: session.role }}
+              allowedSections={allowedSections}
+            />
             <main className="flex-1 overflow-x-hidden">{children}</main>
           </div>
         ) : (
