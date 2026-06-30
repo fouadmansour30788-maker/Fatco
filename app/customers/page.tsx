@@ -13,28 +13,36 @@ export default async function CustomersPage({
 }) {
   const { q, type } = await searchParams;
 
-  const customers = await prisma.customer.findMany({
-    where: {
-      ...(type ? { type } : {}),
-      ...(q
-        ? {
-            OR: [
-              { name: { contains: q } },
-              { companyName: { contains: q } },
-              { phone: { contains: q } },
-            ],
-          }
-        : {}),
-    },
-    include: { _count: { select: { vehicles: true, transactions: true } } },
-    orderBy: { createdAt: "desc" },
-  });
+  const where = {
+    ...(type ? { type } : {}),
+    ...(q
+      ? {
+          OR: [
+            { name: { contains: q, mode: "insensitive" as const } },
+            { companyName: { contains: q, mode: "insensitive" as const } },
+            { phone: { contains: q } },
+          ],
+        }
+      : {}),
+  };
+
+  const [total, customers] = await Promise.all([
+    prisma.customer.count({ where }),
+    prisma.customer.findMany({
+      where,
+      include: { _count: { select: { vehicles: true, transactions: true } } },
+      orderBy: { name: "asc" },
+      take: 100,
+    }),
+  ]);
 
   return (
     <>
       <PageHeader
         title="Customers"
-        subtitle={`${customers.length} ${type ? type.toLowerCase() : ""} customer(s)`}
+        subtitle={`${total.toLocaleString()} ${type ? type.toLowerCase() + " " : ""}customer(s)${
+          total > customers.length ? ` · showing first ${customers.length} — search to narrow` : ""
+        }`}
         action={{ href: "/customers/new", label: "+ New customer" }}
       />
       <div className="p-8">
