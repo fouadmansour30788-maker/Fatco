@@ -76,6 +76,20 @@ export async function adjustStock(formData: FormData) {
   revalidatePath("/items");
 }
 
+// One-click toggle from the items list — no need to open the edit form just
+// to link/unlink an item from the storefront.
+export async function toggleStorefrontVisible(formData: FormData) {
+  const id = String(formData.get("id") || "");
+  const next = formData.get("next") === "1";
+  if (!id) return;
+  await prisma.item.update({
+    where: { id },
+    data: { storefrontVisible: next },
+  });
+  revalidatePath("/items");
+  revalidatePath("/shop");
+}
+
 function str(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
   return s === "" ? undefined : s;

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoney } from "@/lib/format";
 import PageHeader from "@/app/components/PageHeader";
-import { adjustStock } from "./actions";
+import { adjustStock, toggleStorefrontVisible } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +40,7 @@ export default async function ItemsPage() {
                 <th className="px-4 py-3 text-right font-medium">Margin</th>
                 <th className="px-4 py-3 text-center font-medium">Stock</th>
                 <th className="px-4 py-3 text-center font-medium">Adjust</th>
+                <th className="px-4 py-3 text-center font-medium">Store</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -58,10 +59,24 @@ export default async function ItemsPage() {
                     }`}
                   >
                     <td className="px-4 py-3">
-                      <div className="font-medium">{i.name}</div>
-                      {i.sku && (
-                        <div className="text-xs text-zinc-400">{i.sku}</div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {i.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={i.imageUrl}
+                            alt=""
+                            className="h-8 w-8 rounded object-cover"
+                          />
+                        ) : (
+                          <div className="h-8 w-8 shrink-0 rounded bg-zinc-100" />
+                        )}
+                        <div>
+                          <div className="font-medium">{i.name}</div>
+                          {i.sku && (
+                            <div className="text-xs text-zinc-400">{i.sku}</div>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-zinc-500">
                       {i.category ?? "—"}
@@ -112,6 +127,26 @@ export default async function ItemsPage() {
                           </button>
                         </form>
                       )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <form action={toggleStorefrontVisible}>
+                        <input type="hidden" name="id" value={i.id} />
+                        <input
+                          type="hidden"
+                          name="next"
+                          value={i.storefrontVisible ? "0" : "1"}
+                        />
+                        <button
+                          type="submit"
+                          className={`badge ${
+                            i.storefrontVisible
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-zinc-100 text-zinc-500"
+                          }`}
+                        >
+                          {i.storefrontVisible ? "Listed ✓" : "List online"}
+                        </button>
+                      </form>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link
