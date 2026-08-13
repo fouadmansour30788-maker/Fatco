@@ -5,11 +5,12 @@ import { portalLogin, type PortalLoginState } from "../actions";
 
 const initial: PortalLoginState = {};
 
-export default function PortalLoginForm() {
+export default function PortalLoginForm({ next }: { next?: string }) {
   const [state, formAction, pending] = useActionState(portalLogin, initial);
 
   return (
     <form action={formAction} className="space-y-4">
+      {next && <input type="hidden" name="next" value={next} />}
       <div>
         <label className="label">Phone number</label>
         <input

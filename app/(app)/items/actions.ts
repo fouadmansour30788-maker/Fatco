@@ -19,6 +19,9 @@ export async function createItem(formData: FormData) {
       stockQty: num(formData.get("stockQty")) ?? 0,
       reorderLevel: num(formData.get("reorderLevel")) ?? 0,
       trackStock: formData.get("trackStock") === "on",
+      description: str(formData.get("description")),
+      imageUrl: str(formData.get("imageUrl")),
+      storefrontVisible: formData.get("storefrontVisible") === "on",
     },
   });
   revalidatePath("/items");
@@ -40,6 +43,9 @@ export async function updateItem(formData: FormData) {
       reorderLevel: num(formData.get("reorderLevel")) ?? 0,
       trackStock: formData.get("trackStock") === "on",
       active: formData.get("active") === "on",
+      description: str(formData.get("description")),
+      imageUrl: str(formData.get("imageUrl")),
+      storefrontVisible: formData.get("storefrontVisible") === "on",
     },
   });
   revalidatePath("/items");

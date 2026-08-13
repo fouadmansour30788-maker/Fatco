@@ -94,24 +94,7 @@ export async function recordSale(input: RecordSaleInput) {
   });
 
   // Inventory: decrement tracked items + movement records.
-  for (const l of lineCreates) {
-    if (!l.itemId) continue;
-    const item = itemById.get(l.itemId);
-    if (!item?.trackStock) continue;
-    await prisma.item.update({
-      where: { id: l.itemId },
-      data: { stockQty: { decrement: l.qty } },
-    });
-    await prisma.inventoryMovement.create({
-      data: {
-        itemId: l.itemId,
-        type: "SALE",
-        qty: -l.qty,
-        unitCost: l.unitCost,
-        reference: `TX-${number}`,
-      },
-    });
-  }
+  await decrementInventory(lineCreates, `TX-${number}`);
 
   if (input.vehicleId && input.mileage) {
     await prisma.vehicle.update({
@@ -170,7 +153,43 @@ export async function recordSale(input: RecordSaleInput) {
   return { id: tx.id, number, total, rewardDiscount };
 }
 
-async function applyLoyalty(opts: {
+// Decrements stock for tracked items and records an InventoryMovement per
+// line. Shared by recordSale (in-store POS) and lib/orders.ts (online orders,
+// applied when an order is marked COMPLETED). `reference` is a free-text tag
+// (e.g. "TX-1234") stored on the movement for traceability.
+export async function decrementInventory(
+  lines: { itemId?: string; qty: number; unitCost: number }[],
+  reference: string
+) {
+  const itemIds = lines
+    .filter((l): l is typeof l & { itemId: string } => Boolean(l.itemId))
+    .map((l) => l.itemId);
+  const items = itemIds.length
+    ? await prisma.item.findMany({ where: { id: { in: itemIds } } })
+    : [];
+  const itemById = new Map(items.map((i) => [i.id, i]));
+
+  for (const l of lines) {
+    if (!l.itemId) continue;
+    const item = itemById.get(l.itemId);
+    if (!item?.trackStock) continue;
+    await prisma.item.update({
+      where: { id: l.itemId },
+      data: { stockQty: { decrement: l.qty } },
+    });
+    await prisma.inventoryMovement.create({
+      data: {
+        itemId: l.itemId,
+        type: "SALE",
+        qty: -l.qty,
+        unitCost: l.unitCost,
+        reference,
+      },
+    });
+  }
+}
+
+export async function applyLoyalty(opts: {
   customerId: string;
   transactionId: string;
   total: number;

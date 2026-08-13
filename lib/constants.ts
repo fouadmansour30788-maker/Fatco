@@ -51,6 +51,30 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const TRANSACTION_STATUSES = ["DRAFT", "COMPLETED", "VOID"] as const;
 
+export const ORDER_CHANNELS = ["IN_STORE", "ONLINE"] as const;
+export type OrderChannel = (typeof ORDER_CHANNELS)[number];
+
+// Lifecycle for ONLINE orders only: PENDING -> CONFIRMED -> COMPLETED, or
+// CANCELLED from PENDING/CONFIRMED. Inventory & loyalty apply at COMPLETED,
+// same as an in-store sale — see lib/orders.ts.
+export const FULFILLMENT_STATUSES = [
+  "PENDING",
+  "CONFIRMED",
+  "COMPLETED",
+  "CANCELLED",
+] as const;
+export type FulfillmentStatus = (typeof FULFILLMENT_STATUSES)[number];
+export const FULFILLMENT_STATUS_LABEL: Record<FulfillmentStatus, string> = {
+  PENDING: "Pending",
+  CONFIRMED: "Confirmed",
+  COMPLETED: "Completed",
+  CANCELLED: "Cancelled",
+};
+
+// Payment options offered to customers checking out on the storefront
+// (excludes CREDIT, which is a staff-extended line, not self-serve).
+export const STOREFRONT_PAYMENT_METHODS = ["CASH", "CARD", "TRANSFER"] as const;
+
 export const EXPENSE_TYPES = ["DIRECT", "INDIRECT"] as const;
 export type ExpenseType = (typeof EXPENSE_TYPES)[number];
 

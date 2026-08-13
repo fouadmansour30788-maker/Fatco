@@ -22,7 +22,13 @@ export async function portalLogin(
   if (!match) return { error: "Phone number or PIN is incorrect." };
 
   await setPortalSession({ sub: match.id, name: match.name });
-  redirect("/portal");
+  const next = String(formData.get("next") || "");
+  redirect(isSafeNext(next) ? next : "/portal");
+}
+
+// Only allow same-site relative paths (blocks "//evil.com" open-redirects).
+function isSafeNext(next: string): boolean {
+  return next.startsWith("/") && !next.startsWith("//");
 }
 
 export async function portalLogout() {

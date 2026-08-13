@@ -2,7 +2,13 @@ import PortalLoginForm from "./PortalLoginForm";
 
 export const metadata = { title: "Sign in · FATCO Customer Portal" };
 
-export default function PortalLoginPage() {
+export default async function PortalLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const { next } = await searchParams;
+
   return (
     <div className="mx-auto max-w-sm py-10">
       <div className="mb-6 text-center">
@@ -12,7 +18,7 @@ export default function PortalLoginPage() {
         </p>
       </div>
       <div className="card p-6">
-        <PortalLoginForm />
+        <PortalLoginForm next={next} />
       </div>
       <p className="mt-4 text-center text-xs text-zinc-400">
         Ask FATCO staff for your portal PIN.

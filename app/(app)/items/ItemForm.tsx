@@ -13,6 +13,9 @@ type ItemValues = {
   reorderLevel?: number;
   trackStock?: boolean;
   active?: boolean;
+  description?: string | null;
+  imageUrl?: string | null;
+  storefrontVisible?: boolean;
 };
 
 export default function ItemForm({
@@ -126,6 +129,44 @@ export default function ItemForm({
             Active
           </label>
         )}
+      </div>
+
+      <div className="card grid grid-cols-2 gap-4 p-6">
+        <div className="col-span-2">
+          <h3 className="mb-1 text-sm font-semibold">Online store</h3>
+          <p className="text-xs text-zinc-500">
+            Only items marked visible show up on the customer storefront
+            (/shop).
+          </p>
+        </div>
+        <label className="col-span-2 flex items-center gap-2 text-sm text-zinc-600">
+          <input
+            type="checkbox"
+            name="storefrontVisible"
+            defaultChecked={values.storefrontVisible ?? false}
+          />
+          Visible on storefront
+        </label>
+        <div className="col-span-2">
+          <label className="label">Description</label>
+          <textarea
+            name="description"
+            rows={3}
+            defaultValue={values.description ?? ""}
+            className="input"
+            placeholder="Shown on the product page"
+          />
+        </div>
+        <div className="col-span-2">
+          <label className="label">Image URL</label>
+          <input
+            name="imageUrl"
+            type="url"
+            defaultValue={values.imageUrl ?? ""}
+            className="input"
+            placeholder="https://…"
+          />
+        </div>
       </div>
 
       <div className="flex gap-3">

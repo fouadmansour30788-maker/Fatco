@@ -23,6 +23,7 @@ export const SECTIONS: Section[] = [
   { key: "customers", label: "Customers", prefix: "/customers" },
   { key: "items", label: "Items & Inventory", prefix: "/items" },
   { key: "sales", label: "Sales & Services", prefix: "/sales" },
+  { key: "orders", label: "Online Orders", prefix: "/orders" },
   { key: "reminders", label: "Reminders", prefix: "/reminders" },
   { key: "loyalty", label: "Loyalty", prefix: "/loyalty" },
   { key: "offers", label: "Offers", prefix: "/offers" },
@@ -41,7 +42,7 @@ export type RolePermissions = { MANAGER: string[]; STAFF: string[] };
 
 export const DEFAULT_PERMISSIONS: RolePermissions = {
   MANAGER: CONFIGURABLE_SECTIONS.map((s) => s.key),
-  STAFF: ["customers", "items", "sales", "reminders"],
+  STAFF: ["customers", "items", "sales", "orders", "reminders"],
 };
 
 export function sectionForPath(pathname: string): string | null {

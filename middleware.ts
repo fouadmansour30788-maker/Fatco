@@ -6,7 +6,10 @@ import {
   verifyPortalToken,
 } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/login"];
+// "/shop" is the public storefront — browsing is open to everyone; individual
+// pages (cart/checkout/orders) gate themselves via requirePortal(), same as
+// the customer portal's own pages.
+const PUBLIC_PATHS = ["/login", "/shop"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
