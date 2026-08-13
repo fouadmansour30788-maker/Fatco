@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Droplet, CircleDot, Gift, Bell, ArrowRight } from "lucide-react";
+import { Droplet, CircleDot, Gift, Bell, ArrowRight, ShoppingCart } from "lucide-react";
 import Car3DClient from "./components/Car3DClient";
 
 export const dynamic = "force-dynamic";
@@ -37,8 +37,11 @@ export default function LandingPage() {
           >
             Customer portal
           </Link>
-          <Link href="/login" className="btn-brand">
+          <Link href="/login" className="rounded-lg px-3 py-2 text-zinc-300 hover:text-white">
             Staff / Admin login
+          </Link>
+          <Link href="/shop" className="btn-brand">
+            <ShoppingCart size={16} /> Shop online
           </Link>
         </nav>
       </header>
@@ -61,7 +64,13 @@ export default function LandingPage() {
             service, collect loyalty rewards, and never miss a change again.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
-            <Link href="/portal/login" className="btn-brand">
+            <Link href="/shop" className="btn-brand">
+              <ShoppingCart size={16} /> Shop online
+            </Link>
+            <Link
+              href="/portal/login"
+              className="btn inline-flex items-center gap-2 rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/5"
+            >
               Customer portal <ArrowRight size={16} />
             </Link>
             <Link
