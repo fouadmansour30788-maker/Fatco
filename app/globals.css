@@ -22,6 +22,10 @@ body {
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
+[dir="rtl"] {
+  font-family: var(--font-noto-arabic), var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
 /* Reusable bits */
 .card {
   @apply rounded-xl border border-zinc-200 bg-white shadow-sm;

@@ -5,14 +5,28 @@ import { portalLogin, type PortalLoginState } from "../actions";
 
 const initial: PortalLoginState = {};
 
-export default function PortalLoginForm({ next }: { next?: string }) {
+type LoginFormText = {
+  phoneNumber: string;
+  pin: string;
+  pinPlaceholder: string;
+  checking: string;
+  viewAccount: string;
+};
+
+export default function PortalLoginForm({
+  next,
+  t,
+}: {
+  next?: string;
+  t: LoginFormText;
+}) {
   const [state, formAction, pending] = useActionState(portalLogin, initial);
 
   return (
     <form action={formAction} className="space-y-4">
       {next && <input type="hidden" name="next" value={next} />}
       <div>
-        <label className="label">Phone number</label>
+        <label className="label">{t.phoneNumber}</label>
         <input
           name="phone"
           type="tel"
@@ -23,13 +37,13 @@ export default function PortalLoginForm({ next }: { next?: string }) {
         />
       </div>
       <div>
-        <label className="label">PIN</label>
+        <label className="label">{t.pin}</label>
         <input
           name="pin"
           inputMode="numeric"
           required
           className="input tracking-widest"
-          placeholder="6-digit PIN"
+          placeholder={t.pinPlaceholder}
         />
       </div>
 
@@ -40,7 +54,7 @@ export default function PortalLoginForm({ next }: { next?: string }) {
       )}
 
       <button type="submit" disabled={pending} className="btn-brand w-full">
-        {pending ? "Checking…" : "View my account"}
+        {pending ? t.checking : t.viewAccount}
       </button>
     </form>
   );

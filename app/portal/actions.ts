@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { setPortalSession, clearPortalSession } from "@/lib/session";
+import { getDictionary } from "@/lib/i18n";
 
 export type PortalLoginState = { error?: string };
 
@@ -12,14 +13,15 @@ export async function portalLogin(
   _prev: PortalLoginState,
   formData: FormData
 ): Promise<PortalLoginState> {
+  const { t } = await getDictionary();
   const phone = digits(String(formData.get("phone") || ""));
   const pin = String(formData.get("pin") || "").trim();
-  if (!phone || !pin) return { error: "Enter your phone number and PIN." };
+  if (!phone || !pin) return { error: t.portal.errorMissingFields };
 
   // Match the PIN, then verify the phone (normalised to digits).
   const candidates = await prisma.customer.findMany({ where: { portalPin: pin } });
   const match = candidates.find((c) => c.phone && digits(c.phone) === phone);
-  if (!match) return { error: "Phone number or PIN is incorrect." };
+  if (!match) return { error: t.portal.errorInvalidCredentials };
 
   await setPortalSession({ sub: match.id, name: match.name });
   const next = String(formData.get("next") || "");

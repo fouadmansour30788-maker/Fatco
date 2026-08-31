@@ -2,11 +2,13 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requirePortal } from "@/lib/session";
 import { formatMoney, formatDate } from "@/lib/format";
+import { getDictionary } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortalDashboard() {
   const session = await requirePortal();
+  const { t } = await getDictionary();
 
   const customer = await prisma.customer.findUnique({
     where: { id: session.sub },
@@ -22,15 +24,15 @@ export default async function PortalDashboard() {
   });
   if (!customer) notFound();
 
-  const totalSpent = customer.transactions.reduce((s, t) => s + t.total, 0);
+  const totalSpent = customer.transactions.reduce((s, tx) => s + tx.total, 0);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">
-          Hi {customer.name.split(" ")[0]} 👋
+          {t.portal.hi(customer.name.split(" ")[0])} 👋
         </h1>
-        <p className="text-sm text-zinc-500">Your FATCO account</p>
+        <p className="text-sm text-zinc-500">{t.portal.accountSubtitle}</p>
       </div>
 
       {/* Points + rewards */}
@@ -39,18 +41,18 @@ export default async function PortalDashboard() {
           <div className="text-3xl font-bold text-brand">
             {customer.pointsBalance}
           </div>
-          <div className="text-xs text-zinc-500">Loyalty points</div>
+          <div className="text-xs text-zinc-500">{t.portal.loyaltyPoints}</div>
         </div>
         <div className="card p-5">
           <div className="text-3xl font-bold">{formatMoney(totalSpent)}</div>
-          <div className="text-xs text-zinc-500">Total spent with us</div>
+          <div className="text-xs text-zinc-500">{t.portal.totalSpent}</div>
         </div>
       </div>
 
       {customer.rewards.length > 0 && (
         <div className="card border-emerald-200 bg-emerald-50 p-5">
           <h2 className="mb-2 text-sm font-semibold text-emerald-700">
-            🎁 Rewards waiting for you
+            {t.portal.rewardsWaiting}
           </h2>
           <ul className="space-y-1 text-sm text-emerald-900">
             {customer.rewards.map((r) => (
@@ -60,17 +62,15 @@ export default async function PortalDashboard() {
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-emerald-700">
-            Show this screen on your next visit to redeem.
-          </p>
+          <p className="mt-2 text-xs text-emerald-700">{t.portal.redeemHint}</p>
         </div>
       )}
 
       {/* Vehicles */}
       <div className="card p-5">
-        <h2 className="mb-3 text-sm font-semibold text-zinc-700">My vehicles</h2>
+        <h2 className="mb-3 text-sm font-semibold text-zinc-700">{t.portal.myVehicles}</h2>
         {customer.vehicles.length === 0 ? (
-          <p className="text-sm text-zinc-400">No vehicles on file.</p>
+          <p className="text-sm text-zinc-400">{t.portal.noVehicles}</p>
         ) : (
           <ul className="space-y-2 text-sm">
             {customer.vehicles.map((v) => (
@@ -81,7 +81,7 @@ export default async function PortalDashboard() {
                 <span>
                   {[v.make, v.model, v.year].filter(Boolean).join(" ") || "Vehicle"}
                   {v.plate && (
-                    <span className="ml-2 text-xs text-zinc-400">{v.plate}</span>
+                    <span className="ms-2 text-xs text-zinc-400">{v.plate}</span>
                   )}
                 </span>
                 <span className="text-xs text-zinc-400">
@@ -96,26 +96,26 @@ export default async function PortalDashboard() {
       {/* History */}
       <div className="card p-5">
         <h2 className="mb-3 text-sm font-semibold text-zinc-700">
-          Service history
+          {t.portal.serviceHistory}
         </h2>
         {customer.transactions.length === 0 ? (
-          <p className="text-sm text-zinc-400">No visits recorded yet.</p>
+          <p className="text-sm text-zinc-400">{t.portal.noVisits}</p>
         ) : (
           <div className="space-y-3">
-            {customer.transactions.map((t) => (
-              <div key={t.id} className="rounded-lg border border-zinc-100 p-4">
+            {customer.transactions.map((tx) => (
+              <div key={tx.id} className="rounded-lg border border-zinc-100 p-4">
                 <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className="text-zinc-500">{formatDate(t.date)}</span>
-                  <span className="font-semibold">{formatMoney(t.total)}</span>
+                  <span className="text-zinc-500">{formatDate(tx.date)}</span>
+                  <span className="font-semibold">{formatMoney(tx.total)}</span>
                 </div>
-                {t.vehicle && (
+                {tx.vehicle && (
                   <div className="mb-1 text-xs text-zinc-400">
-                    {[t.vehicle.make, t.vehicle.model].filter(Boolean).join(" ")}{" "}
-                    {t.vehicle.plate}
+                    {[tx.vehicle.make, tx.vehicle.model].filter(Boolean).join(" ")}{" "}
+                    {tx.vehicle.plate}
                   </div>
                 )}
                 <ul className="text-sm text-zinc-600">
-                  {t.lines.map((l) => (
+                  {tx.lines.map((l) => (
                     <li key={l.id} className="flex justify-between py-0.5">
                       <span>
                         {l.description}

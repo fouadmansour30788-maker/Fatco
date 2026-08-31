@@ -3,11 +3,13 @@ import { requirePortal } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatMoney, formatDateTime } from "@/lib/format";
 import { FULFILLMENT_STATUS_LABEL, type FulfillmentStatus } from "@/lib/constants";
+import { getDictionary } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
 export default async function MyOrdersPage() {
   const session = await requirePortal();
+  const { t } = await getDictionary();
   const orders = await prisma.transaction.findMany({
     where: { customerId: session.sub, channel: "ONLINE" },
     orderBy: { date: "desc" },
@@ -15,9 +17,9 @@ export default async function MyOrdersPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold">My orders</h1>
+      <h1 className="mb-4 text-xl font-semibold">{t.shop.myOrdersTitle}</h1>
       {orders.length === 0 ? (
-        <p className="text-zinc-500">You haven&apos;t placed any orders yet.</p>
+        <p className="text-zinc-500">{t.shop.noOrdersYet}</p>
       ) : (
         <div className="card divide-y divide-zinc-100">
           {orders.map((o) => (
@@ -27,10 +29,10 @@ export default async function MyOrdersPage() {
               className="flex items-center justify-between p-4 hover:bg-zinc-50"
             >
               <div>
-                <div className="font-medium">Order #{o.number}</div>
+                <div className="font-medium">{t.shop.orderNumber(o.number)}</div>
                 <div className="text-sm text-zinc-500">{formatDateTime(o.date)}</div>
               </div>
-              <div className="text-right">
+              <div className="text-end">
                 <div className="font-medium">{formatMoney(o.total)}</div>
                 <div className="text-sm text-zinc-500">
                   {FULFILLMENT_STATUS_LABEL[(o.fulfillmentStatus ?? "PENDING") as FulfillmentStatus]}

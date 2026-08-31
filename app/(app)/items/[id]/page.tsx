@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import PageHeader from "@/app/components/PageHeader";
 import ItemForm from "../ItemForm";
@@ -14,6 +14,7 @@ export default async function EditItemPage({
   const { id } = await params;
   const item = await prisma.item.findUnique({ where: { id } });
   if (!item) notFound();
+  if (item.kind === "BUNDLE") redirect(`/items/bundles/${id}`);
 
   return (
     <>

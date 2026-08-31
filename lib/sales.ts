@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { expandBundleLine } from "./bundles";
 
 export type SaleLineInput = {
   kind: "item" | "service" | "custom";
@@ -34,18 +35,24 @@ export async function recordSale(input: RecordSaleInput) {
     : [];
   const itemById = new Map(items.map((i) => [i.id, i]));
 
-  const lineCreates = lines.map((l) => {
-    const item = l.kind === "item" && l.refId ? itemById.get(l.refId) : undefined;
-    return {
-      itemId: item?.id,
-      serviceTypeId: l.kind === "service" ? l.refId : undefined,
-      description: l.description,
-      qty: l.qty,
-      unitPrice: l.unitPrice,
-      unitCost: item?.costPrice ?? 0,
-      lineTotal: round2(l.unitPrice * l.qty),
-    };
-  });
+  const lineGroups = await Promise.all(
+    lines.map((l) => {
+      const item = l.kind === "item" && l.refId ? itemById.get(l.refId) : undefined;
+      if (item?.kind === "BUNDLE") return expandBundleLine(item, l.qty);
+      return Promise.resolve([
+        {
+          itemId: item?.id,
+          serviceTypeId: l.kind === "service" ? l.refId : undefined,
+          description: l.description,
+          qty: l.qty,
+          unitPrice: l.unitPrice,
+          unitCost: item?.costPrice ?? 0,
+          lineTotal: round2(l.unitPrice * l.qty),
+        },
+      ]);
+    })
+  );
+  const lineCreates = lineGroups.flat();
 
   const subtotal = round2(lineCreates.reduce((s, l) => s + l.lineTotal, 0));
   const cost = round2(lineCreates.reduce((s, l) => s + l.unitCost * l.qty, 0));

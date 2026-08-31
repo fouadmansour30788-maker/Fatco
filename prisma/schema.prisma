@@ -42,11 +42,12 @@ model Customer {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  vehicles       Vehicle[]
-  transactions   Transaction[]
-  loyaltyEntries LoyaltyLedger[]
-  rewards        Reward[]
-  cartItems      CartItem[]
+  vehicles          Vehicle[]
+  transactions      Transaction[]
+  loyaltyEntries    LoyaltyLedger[]
+  rewards           Reward[]
+  cartItems         CartItem[]
+  backInStockAlerts BackInStockAlert[]
 
   @@index([phone])
   @@index([type])
@@ -77,6 +78,7 @@ model Item {
   id                String   @id @default(cuid())
   sku               String?  @unique
   name              String
+  nameAr            String? // Arabic storefront name; falls back to `name`
   category          String? // OIL | TYRE | FILTER | LABOR | OTHER
   unit              String   @default("pcs")
   costPrice         Float    @default(0)
@@ -86,16 +88,52 @@ model Item {
   trackStock        Boolean  @default(true) // false for services/labor
   active            Boolean  @default(true)
   description       String? // storefront product description
+  descriptionAr     String? // Arabic storefront description; falls back to `description`
   imageUrl          String? // storefront product image
   storefrontVisible Boolean  @default(false) // staff opt-in to list on /shop
+  kind              String   @default("PRODUCT") // PRODUCT | BUNDLE
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  movements        InventoryMovement[]
-  transactionLines TransactionLine[]
-  cartItems        CartItem[]
+  movements         InventoryMovement[]
+  transactionLines  TransactionLine[]
+  cartItems         CartItem[]
+  bundleComponents  BundleComponent[]   @relation("BundleComponents") // this item's components, when kind=BUNDLE
+  componentOf       BundleComponent[]   @relation("BundleComponentOf") // bundles this item is used inside
+  backInStockAlerts BackInStockAlert[]
 
   @@index([category])
+}
+
+// Links a BUNDLE-kind Item to the real Items it's made of, so checkout can
+// decrement the actual components' stock instead of the bundle's own (which
+// has none — see lib/bundles.ts).
+model BundleComponent {
+  id              String @id @default(cuid())
+  bundleItemId    String
+  bundleItem      Item   @relation("BundleComponents", fields: [bundleItemId], references: [id], onDelete: Cascade)
+  componentItemId String
+  componentItem   Item   @relation("BundleComponentOf", fields: [componentItemId], references: [id], onDelete: Cascade)
+  qty             Float  @default(1)
+
+  @@index([bundleItemId])
+}
+
+// A storefront customer asking to be notified when an out-of-stock item is
+// restocked. Notified via the same messaging provider as service reminders
+// (see lib/messaging.ts) when staff bring stock back above zero.
+model BackInStockAlert {
+  id         String    @id @default(cuid())
+  itemId     String
+  item       Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  status     String    @default("PENDING") // PENDING | NOTIFIED
+  createdAt  DateTime  @default(now())
+  notifiedAt DateTime?
+
+  @@unique([itemId, customerId])
+  @@index([itemId])
 }
 
 model InventoryMovement {

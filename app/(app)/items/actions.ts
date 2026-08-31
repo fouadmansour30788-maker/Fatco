@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { notifyBackInStock } from "@/lib/backInStock";
 
 export async function createItem(formData: FormData) {
   const name = String(formData.get("name") || "").trim();
@@ -11,6 +12,7 @@ export async function createItem(formData: FormData) {
   await prisma.item.create({
     data: {
       name,
+      nameAr: str(formData.get("nameAr")),
       sku: str(formData.get("sku")),
       category: str(formData.get("category")),
       unit: str(formData.get("unit")) ?? "pcs",
@@ -20,6 +22,7 @@ export async function createItem(formData: FormData) {
       reorderLevel: num(formData.get("reorderLevel")) ?? 0,
       trackStock: formData.get("trackStock") === "on",
       description: str(formData.get("description")),
+      descriptionAr: str(formData.get("descriptionAr")),
       imageUrl: str(formData.get("imageUrl")),
       storefrontVisible: formData.get("storefrontVisible") === "on",
     },
@@ -35,6 +38,7 @@ export async function updateItem(formData: FormData) {
     where: { id },
     data: {
       name: String(formData.get("name") || "").trim(),
+      nameAr: str(formData.get("nameAr")),
       sku: str(formData.get("sku")),
       category: str(formData.get("category")),
       unit: str(formData.get("unit")) ?? "pcs",
@@ -44,6 +48,7 @@ export async function updateItem(formData: FormData) {
       trackStock: formData.get("trackStock") === "on",
       active: formData.get("active") === "on",
       description: str(formData.get("description")),
+      descriptionAr: str(formData.get("descriptionAr")),
       imageUrl: str(formData.get("imageUrl")),
       storefrontVisible: formData.get("storefrontVisible") === "on",
     },
@@ -52,12 +57,20 @@ export async function updateItem(formData: FormData) {
   redirect("/items");
 }
 
-// Stock in/out adjustment that also writes an inventory movement record.
+// Stock in/out adjustment that also writes an inventory movement record. If
+// this brings a previously-out-of-stock item back above zero, fires
+// back-in-stock notifications to anyone who asked (see lib/backInStock.ts).
 export async function adjustStock(formData: FormData) {
   const id = String(formData.get("itemId") || "");
   const delta = num(formData.get("delta")) ?? 0;
   const note = str(formData.get("note"));
   if (!id || delta === 0) return;
+
+  const before = await prisma.item.findUnique({
+    where: { id },
+    select: { stockQty: true },
+  });
+  if (!before) return;
 
   await prisma.$transaction([
     prisma.item.update({
@@ -74,6 +87,10 @@ export async function adjustStock(formData: FormData) {
     }),
   ]);
   revalidatePath("/items");
+
+  const wasOut = before.stockQty <= 0;
+  const nowIn = before.stockQty + delta > 0;
+  if (wasOut && nowIn) await notifyBackInStock(id);
 }
 
 // One-click toggle from the items list — no need to open the edit form just
@@ -88,6 +105,75 @@ export async function toggleStorefrontVisible(formData: FormData) {
   });
   revalidatePath("/items");
   revalidatePath("/shop");
+}
+
+type BundleComponentInput = { itemId: string; qty: number };
+
+function parseComponents(formData: FormData): BundleComponentInput[] {
+  let components: BundleComponentInput[] = [];
+  try {
+    components = JSON.parse(String(formData.get("components") || "[]"));
+  } catch {
+    throw new Error("Invalid component data");
+  }
+  components = components.filter((c) => c.itemId && c.qty > 0);
+  if (components.length === 0) throw new Error("Add at least one component");
+  return components;
+}
+
+export async function createBundle(formData: FormData) {
+  const name = String(formData.get("name") || "").trim();
+  if (!name) throw new Error("Name is required");
+  const components = parseComponents(formData);
+
+  await prisma.item.create({
+    data: {
+      name,
+      nameAr: str(formData.get("nameAr")),
+      sku: str(formData.get("sku")),
+      kind: "BUNDLE",
+      trackStock: false,
+      salePrice: num(formData.get("salePrice")) ?? 0,
+      description: str(formData.get("description")),
+      descriptionAr: str(formData.get("descriptionAr")),
+      imageUrl: str(formData.get("imageUrl")),
+      storefrontVisible: formData.get("storefrontVisible") === "on",
+      bundleComponents: {
+        create: components.map((c) => ({ componentItemId: c.itemId, qty: c.qty })),
+      },
+    },
+  });
+  revalidatePath("/items");
+  redirect("/items");
+}
+
+export async function updateBundle(formData: FormData) {
+  const id = String(formData.get("id") || "");
+  if (!id) throw new Error("Missing bundle id");
+  const components = parseComponents(formData);
+
+  await prisma.$transaction([
+    prisma.bundleComponent.deleteMany({ where: { bundleItemId: id } }),
+    prisma.item.update({
+      where: { id },
+      data: {
+        name: String(formData.get("name") || "").trim(),
+        nameAr: str(formData.get("nameAr")),
+        sku: str(formData.get("sku")),
+        salePrice: num(formData.get("salePrice")) ?? 0,
+        description: str(formData.get("description")),
+        descriptionAr: str(formData.get("descriptionAr")),
+        imageUrl: str(formData.get("imageUrl")),
+        active: formData.get("active") === "on",
+        storefrontVisible: formData.get("storefrontVisible") === "on",
+        bundleComponents: {
+          create: components.map((c) => ({ componentItemId: c.itemId, qty: c.qty })),
+        },
+      },
+    }),
+  ]);
+  revalidatePath("/items");
+  redirect("/items");
 }
 
 function str(v: FormDataEntryValue | null): string | undefined {

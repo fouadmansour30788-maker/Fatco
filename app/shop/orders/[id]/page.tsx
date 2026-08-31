@@ -4,6 +4,7 @@ import { requirePortal } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { formatMoney, formatDateTime } from "@/lib/format";
 import { FULFILLMENT_STATUS_LABEL, type FulfillmentStatus } from "@/lib/constants";
+import { getDictionary } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ export default async function MyOrderDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const session = await requirePortal();
+  const { t } = await getDictionary();
   const { id } = await params;
   const order = await prisma.transaction.findUnique({
     where: { id },
@@ -24,9 +26,9 @@ export default async function MyOrderDetailPage({
 
   return (
     <div className="max-w-lg">
-      <h1 className="mb-1 text-xl font-semibold">Order #{order.number}</h1>
+      <h1 className="mb-1 text-xl font-semibold">{t.shop.orderNumber(order.number)}</h1>
       <p className="mb-4 text-sm text-zinc-500">
-        Placed {formatDateTime(order.date)} ·{" "}
+        {t.shop.placedOn(formatDateTime(order.date))} ·{" "}
         {FULFILLMENT_STATUS_LABEL[(order.fulfillmentStatus ?? "PENDING") as FulfillmentStatus]}
       </p>
 
@@ -40,20 +42,20 @@ export default async function MyOrderDetailPage({
           </div>
         ))}
         <div className="mt-2 flex justify-between border-t border-zinc-100 pt-2 font-semibold">
-          <span>Total</span>
+          <span>{t.shop.total}</span>
           <span>{formatMoney(order.total)}</span>
         </div>
       </div>
 
       <div className="card mt-4 p-4 text-sm">
-        <div className="mb-1 font-semibold">Delivery / pickup</div>
+        <div className="mb-1 font-semibold">{t.shop.deliveryPickup}</div>
         <p className="whitespace-pre-wrap text-zinc-600">{order.shippingAddress}</p>
-        <div className="mb-1 mt-3 font-semibold">Payment</div>
+        <div className="mb-1 mt-3 font-semibold">{t.shop.payment}</div>
         <p className="text-zinc-600">{order.paymentMethod}</p>
       </div>
 
       <Link href="/shop/orders" className="mt-4 inline-block text-brand hover:underline">
-        ← All orders
+        {t.shop.allOrders}
       </Link>
     </div>
   );

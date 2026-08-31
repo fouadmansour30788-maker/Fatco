@@ -53,6 +53,22 @@ export async function removeFromCart(formData: FormData) {
   revalidatePath("/shop/cart");
 }
 
+export async function requestBackInStockAlert(formData: FormData) {
+  const session = await getPortalSession();
+  const itemId = String(formData.get("itemId") || "");
+  if (!session) {
+    redirect(`/portal/login?next=${encodeURIComponent(`/shop/${itemId}`)}`);
+  }
+  if (!itemId) return;
+
+  await prisma.backInStockAlert.upsert({
+    where: { itemId_customerId: { itemId, customerId: session.sub } },
+    update: {},
+    create: { itemId, customerId: session.sub },
+  });
+  revalidatePath(`/shop/${itemId}`);
+}
+
 export async function placeOrderAction(formData: FormData) {
   const session = await requirePortal();
   const shippingAddress = String(formData.get("shippingAddress") || "").trim();

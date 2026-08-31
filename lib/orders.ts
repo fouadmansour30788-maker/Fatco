@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { decrementInventory, applyLoyalty } from "./sales";
+import { expandBundleLine, checkBundleAvailability } from "./bundles";
 
 export type PlaceOrderInput = {
   customerId: string;
@@ -21,19 +22,35 @@ export async function placeOrder(input: PlaceOrderInput) {
   if (cartItems.length === 0) throw new Error("Your cart is empty");
 
   for (const c of cartItems) {
-    if (c.item.trackStock && c.qty > c.item.stockQty) {
+    if (c.item.kind === "BUNDLE") {
+      const avail = await checkBundleAvailability(c.item.id, c.qty);
+      if (!avail.ok) {
+        throw new Error(
+          `${c.item.name}: ${avail.shortItem} only has ${avail.available} in stock`
+        );
+      }
+    } else if (c.item.trackStock && c.qty > c.item.stockQty) {
       throw new Error(`${c.item.name}: only ${c.item.stockQty} left in stock`);
     }
   }
 
-  const lineCreates = cartItems.map((c) => ({
-    itemId: c.item.id,
-    description: c.item.name,
-    qty: c.qty,
-    unitPrice: c.item.salePrice,
-    unitCost: c.item.costPrice,
-    lineTotal: round2(c.item.salePrice * c.qty),
-  }));
+  const lineGroups = await Promise.all(
+    cartItems.map((c) =>
+      c.item.kind === "BUNDLE"
+        ? expandBundleLine(c.item, c.qty)
+        : Promise.resolve([
+            {
+              itemId: c.item.id,
+              description: c.item.name,
+              qty: c.qty,
+              unitPrice: c.item.salePrice,
+              unitCost: c.item.costPrice,
+              lineTotal: round2(c.item.salePrice * c.qty),
+            },
+          ])
+    )
+  );
+  const lineCreates = lineGroups.flat();
 
   const subtotal = round2(lineCreates.reduce((s, l) => s + l.lineTotal, 0));
   const cost = round2(lineCreates.reduce((s, l) => s + l.unitCost * l.qty, 0));

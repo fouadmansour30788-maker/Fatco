@@ -94,3 +94,9 @@ export type LoyaltyRuleType = (typeof LOYALTY_RULE_TYPES)[number];
 
 export const USER_ROLES = ["OWNER", "MANAGER", "STAFF"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+
+export const ITEM_KINDS = ["PRODUCT", "BUNDLE"] as const;
+export type ItemKind = (typeof ITEM_KINDS)[number];
+
+export const BACK_IN_STOCK_STATUSES = ["PENDING", "NOTIFIED"] as const;
+export type BackInStockStatus = (typeof BACK_IN_STOCK_STATUSES)[number];

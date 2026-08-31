@@ -4,6 +4,7 @@ import { ITEM_CATEGORIES } from "@/lib/constants";
 type ItemValues = {
   id?: string;
   name?: string;
+  nameAr?: string | null;
   sku?: string | null;
   category?: string | null;
   unit?: string;
@@ -14,6 +15,7 @@ type ItemValues = {
   trackStock?: boolean;
   active?: boolean;
   description?: string | null;
+  descriptionAr?: string | null;
   imageUrl?: string | null;
   storefrontVisible?: boolean;
 };
@@ -39,6 +41,16 @@ export default function ItemForm({
             defaultValue={values.name ?? ""}
             className="input"
             placeholder="e.g. Engine Oil 5W-30 (4L)"
+          />
+        </div>
+        <div className="col-span-2">
+          <label className="label">Name (Arabic)</label>
+          <input
+            name="nameAr"
+            dir="rtl"
+            defaultValue={values.nameAr ?? ""}
+            className="input"
+            placeholder="الاسم بالعربية — يظهر عند التصفح بالعربية"
           />
         </div>
         <div>
@@ -147,7 +159,7 @@ export default function ItemForm({
           />
           Visible on storefront
         </label>
-        <div className="col-span-2">
+        <div>
           <label className="label">Description</label>
           <textarea
             name="description"
@@ -155,6 +167,17 @@ export default function ItemForm({
             defaultValue={values.description ?? ""}
             className="input"
             placeholder="Shown on the product page"
+          />
+        </div>
+        <div>
+          <label className="label">Description (Arabic)</label>
+          <textarea
+            name="descriptionAr"
+            rows={3}
+            dir="rtl"
+            defaultValue={values.descriptionAr ?? ""}
+            className="input"
+            placeholder="يظهر عند التصفح بالعربية"
           />
         </div>
         <div className="col-span-2">
