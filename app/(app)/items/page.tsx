@@ -7,9 +7,19 @@ import { adjustStock, toggleStorefrontVisible } from "./actions";
 export const dynamic = "force-dynamic";
 
 export default async function ItemsPage() {
-  const items = await prisma.item.findMany({
-    orderBy: [{ active: "desc" }, { category: "asc" }, { name: "asc" }],
-  });
+  const [items, waitingCounts] = await Promise.all([
+    prisma.item.findMany({
+      orderBy: [{ active: "desc" }, { category: "asc" }, { name: "asc" }],
+    }),
+    prisma.backInStockAlert.groupBy({
+      by: ["itemId"],
+      where: { status: "PENDING" },
+      _count: { _all: true },
+    }),
+  ]);
+  const waitingByItem = new Map(
+    waitingCounts.map((w) => [w.itemId, w._count._all])
+  );
 
   const stockValue = items.reduce(
     (s, i) => s + (i.trackStock ? i.stockQty * i.costPrice : 0),
@@ -29,6 +39,11 @@ export default async function ItemsPage() {
         action={{ href: "/items/new", label: "+ New item" }}
       />
       <div className="p-8">
+        <div className="mb-4 flex justify-end">
+          <Link href="/items/bundles/new" className="btn-ghost">
+            + New bundle / kit
+          </Link>
+        </div>
         <div className="card overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 text-left text-xs text-zinc-500">
@@ -71,7 +86,19 @@ export default async function ItemsPage() {
                           <div className="h-8 w-8 shrink-0 rounded bg-zinc-100" />
                         )}
                         <div>
-                          <div className="font-medium">{i.name}</div>
+                          <div className="flex items-center gap-1.5 font-medium">
+                            {i.name}
+                            {i.kind === "BUNDLE" && (
+                              <span className="badge bg-violet-100 text-violet-700">
+                                Kit
+                              </span>
+                            )}
+                            {(waitingByItem.get(i.id) ?? 0) > 0 && (
+                              <span className="badge bg-amber-100 text-amber-700">
+                                {waitingByItem.get(i.id)} waiting
+                              </span>
+                            )}
+                          </div>
                           {i.sku && (
                             <div className="text-xs text-zinc-400">{i.sku}</div>
                           )}
@@ -102,7 +129,9 @@ export default async function ItemsPage() {
                           {i.stockQty}
                         </span>
                       ) : (
-                        <span className="text-xs text-zinc-400">service</span>
+                        <span className="text-xs text-zinc-400">
+                          {i.kind === "BUNDLE" ? "kit" : "service"}
+                        </span>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -150,7 +179,7 @@ export default async function ItemsPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link
-                        href={`/items/${i.id}`}
+                        href={i.kind === "BUNDLE" ? `/items/bundles/${i.id}` : `/items/${i.id}`}
                         className="text-xs text-brand hover:underline"
                       >
                         Edit

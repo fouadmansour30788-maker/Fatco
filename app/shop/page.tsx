@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Package } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { formatMoney } from "@/lib/format";
+import { getDictionary } from "@/lib/i18n";
+import CategorySidebar from "./CategorySidebar";
+import ProductCard from "./ProductCard";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ export default async function ShopPage({
   searchParams: Promise<{ q?: string; category?: string }>;
 }) {
   const { q, category } = await searchParams;
+  const { locale, t } = await getDictionary();
 
   const [items, categoryRows] = await Promise.all([
     prisma.item.findMany({
@@ -22,85 +24,87 @@ export default async function ShopPage({
       },
       orderBy: { name: "asc" },
     }),
-    prisma.item.findMany({
+    prisma.item.groupBy({
+      by: ["category"],
       where: { storefrontVisible: true, active: true },
-      select: { category: true },
-      distinct: ["category"],
+      _count: { _all: true },
     }),
   ]);
   const categories = categoryRows
-    .map((c) => c.category)
-    .filter((c): c is string => Boolean(c))
-    .sort();
+    .filter((c): c is typeof c & { category: string } => Boolean(c.category))
+    .map((c) => ({ name: c.category, count: c._count._all }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // A bundle has no stock of its own — it's out of stock if any of its real
+  // components is. Fetch components for every bundle in this result set once.
+  const bundleIds = items.filter((i) => i.kind === "BUNDLE").map((i) => i.id);
+  const bundleComponents = bundleIds.length
+    ? await prisma.bundleComponent.findMany({
+        where: { bundleItemId: { in: bundleIds } },
+        include: { componentItem: true },
+      })
+    : [];
+  const outOfStockBundleIds = new Set(
+    bundleComponents
+      .filter((c) => c.componentItem.trackStock && c.componentItem.stockQty <= 0)
+      .map((c) => c.bundleItemId)
+  );
 
   return (
-    <div>
-      <h1 className="mb-4 text-xl font-semibold">Shop FATCO</h1>
+    <div className="grid gap-6 sm:grid-cols-[12rem_1fr]">
+      <CategorySidebar
+        categories={categories}
+        active={category}
+        categoriesLabel={t.shop.categories}
+        allProductsLabel={t.shop.allProducts}
+      />
 
-      <form action="/shop" className="mb-6 flex flex-wrap gap-2">
-        <input
-          name="q"
-          defaultValue={q ?? ""}
-          placeholder="Search products…"
-          className="input min-w-[200px] flex-1"
-        />
-        <select name="category" defaultValue={category ?? ""} className="input">
-          <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-        <button className="btn-brand" type="submit">
-          Search
-        </button>
-        {(q || category) && (
-          <Link href="/shop" className="btn-ghost">
-            Clear
-          </Link>
+      <div>
+        <h1 className="mb-4 text-xl font-semibold">{category ?? t.shop.title}</h1>
+
+        <form action="/shop" className="mb-6 flex flex-wrap gap-2">
+          {category && <input type="hidden" name="category" value={category} />}
+          <input
+            name="q"
+            defaultValue={q ?? ""}
+            placeholder={t.shop.searchPlaceholder}
+            className="input min-w-[200px] flex-1"
+          />
+          <button className="btn-brand" type="submit">
+            {t.shop.search}
+          </button>
+          {(q || category) && (
+            <Link href="/shop" className="btn-ghost">
+              {t.shop.clear}
+            </Link>
+          )}
+        </form>
+
+        {items.length === 0 ? (
+          <p className="text-zinc-500">{t.shop.noResults}</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {items.map((item) => {
+              const outOfStock =
+                item.kind === "BUNDLE"
+                  ? outOfStockBundleIds.has(item.id)
+                  : item.trackStock && item.stockQty <= 0;
+              return (
+                <ProductCard
+                  key={item.id}
+                  id={item.id}
+                  name={(locale === "ar" && item.nameAr) || item.name}
+                  category={item.category}
+                  imageUrl={item.imageUrl}
+                  salePrice={item.salePrice}
+                  outOfStock={outOfStock}
+                  outOfStockLabel={t.shop.outOfStock}
+                />
+              );
+            })}
+          </div>
         )}
-      </form>
-
-      {items.length === 0 ? (
-        <p className="text-zinc-500">No products match your search.</p>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {items.map((item) => {
-            const outOfStock = item.trackStock && item.stockQty <= 0;
-            return (
-              <Link
-                key={item.id}
-                href={`/shop/${item.id}`}
-                className="card overflow-hidden transition-shadow hover:shadow-md"
-              >
-                <div className="flex aspect-square items-center justify-center bg-zinc-100">
-                  {item.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={item.imageUrl}
-                      alt={item.name}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <Package className="text-zinc-300" size={40} />
-                  )}
-                </div>
-                <div className="p-3">
-                  {item.category && (
-                    <div className="text-xs text-zinc-400">{item.category}</div>
-                  )}
-                  <div className="line-clamp-2 text-sm font-medium">{item.name}</div>
-                  <div className="mt-1 font-semibold">{formatMoney(item.salePrice)}</div>
-                  {outOfStock && (
-                    <div className="mt-1 text-xs text-red-500">Out of stock</div>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
