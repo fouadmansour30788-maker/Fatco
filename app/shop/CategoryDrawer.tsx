@@ -15,15 +15,25 @@ export default function CategoryDrawer({
 }) {
   const [open, setOpen] = useState(false);
 
+  // A single wrapping element matters here: this component is placed
+  // directly inside a CSS Grid in app/shop/page.tsx. A Fragment would let
+  // Grid treat each top-level child (button/backdrop/panel) as its own grid
+  // item instead of one, breaking the two-column layout.
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="btn-ghost mb-4 sm:hidden"
-      >
-        <Menu size={16} /> {label}
-      </button>
+    <div>
+      {/* Wrapped rather than putting sm:hidden directly on the button:
+          btn-ghost is unlayered CSS (plain @apply in globals.css), and
+          unlayered rules always beat Tailwind's layered utilities — including
+          responsive variants — regardless of source order. */}
+      <div className="sm:hidden">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="btn-ghost mb-4"
+        >
+          <Menu size={16} /> {label}
+        </button>
+      </div>
 
       {open && (
         <div
@@ -48,6 +58,6 @@ export default function CategoryDrawer({
         </button>
         {children}
       </div>
-    </>
+    </div>
   );
 }
