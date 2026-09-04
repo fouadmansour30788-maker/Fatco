@@ -29,6 +29,7 @@ export const SECTIONS: Section[] = [
   { key: "offers", label: "Offers", prefix: "/offers" },
   { key: "expenses", label: "Expenses", prefix: "/expenses" },
   { key: "reports", label: "Reports", prefix: "/reports" },
+  { key: "store", label: "Store Content", prefix: "/store" },
   { key: "staff", label: "Staff", prefix: "/staff" },
 ];
 

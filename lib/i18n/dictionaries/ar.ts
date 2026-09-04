@@ -78,6 +78,10 @@ const ar: Dictionary = {
     sku: "رمز المنتج",
     unitLabel: "الوحدة",
     relatedTitle: "قد يعجبك أيضًا",
+    topSellers: "الأكثر مبيعًا",
+    openMenu: "الفئات",
+    contact: "تواصل معنا",
+    followUs: "تابعنا",
   },
   portal: {
     portalName: "بوابة العملاء",

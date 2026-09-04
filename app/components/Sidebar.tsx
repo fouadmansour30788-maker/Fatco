@@ -13,6 +13,7 @@ import {
   Receipt,
   BarChart3,
   Bell,
+  Image as ImageIcon,
   ShieldCheck,
   LogOut,
 } from "lucide-react";
@@ -30,6 +31,7 @@ const NAV = [
   { href: "/offers", label: "Offers", icon: Tag },
   { href: "/expenses", label: "Expenses", icon: Receipt },
   { href: "/reports", label: "Reports", icon: BarChart3 },
+  { href: "/store", label: "Store Content", icon: ImageIcon },
   { href: "/staff", label: "Staff", icon: ShieldCheck },
 ];
 

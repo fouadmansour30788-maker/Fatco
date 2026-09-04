@@ -76,6 +76,10 @@ const en = {
     sku: "SKU",
     unitLabel: "Unit",
     relatedTitle: "You may also like",
+    topSellers: "Top sellers",
+    openMenu: "Categories",
+    contact: "Contact",
+    followUs: "Follow us",
   },
   portal: {
     portalName: "Customer Portal",

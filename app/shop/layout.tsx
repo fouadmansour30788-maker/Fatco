@@ -4,18 +4,21 @@ import { ShoppingCart, User } from "lucide-react";
 import { getPortalSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getDictionary } from "@/lib/i18n";
+import { getStoreContent } from "@/lib/storeContent";
 import { notoSansArabic } from "@/lib/fonts";
 import LanguageSwitcher from "@/app/components/LanguageSwitcher";
+import Footer from "./Footer";
 
 export default async function ShopLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [session, { locale, t }, pathname] = await Promise.all([
+  const [session, { locale, t }, pathname, storeContent] = await Promise.all([
     getPortalSession(),
     getDictionary(),
     headers().then((h) => h.get("x-pathname") ?? "/shop"),
+    getStoreContent(),
   ]);
   const cartCount = session
     ? await prisma.cartItem
@@ -27,7 +30,7 @@ export default async function ShopLayout({
   return (
     <div
       dir={dir}
-      className={`min-h-screen bg-zinc-50 ${locale === "ar" ? notoSansArabic.variable : ""}`}
+      className={`flex min-h-screen flex-col bg-zinc-50 ${locale === "ar" ? notoSansArabic.variable : ""}`}
     >
       <header className="border-b border-zinc-200 bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
@@ -73,7 +76,12 @@ export default async function ShopLayout({
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
+      <Footer
+        content={storeContent}
+        locale={locale}
+        t={{ ...t.shop, ...t.common, ...t.landing }}
+      />
     </div>
   );
 }
