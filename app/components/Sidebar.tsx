@@ -14,6 +14,7 @@ import {
   BarChart3,
   Bell,
   Image as ImageIcon,
+  MessageCircle,
   ShieldCheck,
   LogOut,
 } from "lucide-react";
@@ -32,6 +33,7 @@ const NAV = [
   { href: "/expenses", label: "Expenses", icon: Receipt },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/store", label: "Store Content", icon: ImageIcon },
+  { href: "/knowledge-base", label: "Chatbot & FAQ", icon: MessageCircle },
   { href: "/staff", label: "Staff", icon: ShieldCheck },
 ];
 

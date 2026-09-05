@@ -356,3 +356,22 @@ model ChatMessage {
   @@index([channel, customerId])
   @@index([channel, phone])
 }
+
+// Staff-editable FAQ used by the rule-based chatbot's keyword search (no LLM
+// involved — see lib/chatbot.ts). `keywords` is a comma-separated string
+// (portable, same convention as everywhere else in this schema avoiding
+// native arrays) of extra terms that should also match this entry beyond
+// the words already in `question`.
+model KnowledgeBaseEntry {
+  id         String   @id @default(cuid())
+  question   String
+  questionAr String?
+  answer     String
+  answerAr   String?
+  keywords   String? // comma-separated extra match terms
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([active])
+}

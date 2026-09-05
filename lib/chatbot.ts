@@ -1,179 +1,218 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "./prisma";
 import { getStoreContent } from "./storeContent";
+import { getChatbotSettings } from "./chatbotSettings";
 import type { ChatChannel } from "./constants";
 
-const client = new Anthropic();
+// Rule-based support chatbot — no LLM involved. Every reply comes from
+// either a direct database lookup (loyalty/orders/service history/vehicles/
+// products) matched by keyword, or a staff-edited KnowledgeBaseEntry found
+// by keyword overlap, or the configured fallback message. See
+// lib/chatbotSettings.ts for the editable greeting/fallback text and the
+// /knowledge-base admin page for the FAQ entries.
 
-const SYSTEM_PROMPT = `You are FATCO's customer support assistant. FATCO (Ahmad Fawzi Fathalla EST.) is an oil, tyres, and car-services business in Tripoli, Lebanon, serving individual and business customers.
+type Lang = "en" | "ar";
 
-You can look up a customer's loyalty points, available rewards, service history, vehicles on file, and online order status using the tools provided, and you can search FATCO's product catalog for prices and stock.
-
-You CANNOT place orders, redeem rewards, change account details, or make any other changes — for those, direct the customer to the online store (/shop) or ask them to contact FATCO staff directly.
-
-Keep answers short, warm, and to the point — this is a text/WhatsApp-style conversation, not a long-form document. If a tool returns no data, say so plainly rather than guessing. Reply in the same language the customer writes in (English or Arabic).`;
-
-const GUEST_SYSTEM_SUFFIX = `
-
-This sender's phone number does not match any FATCO customer account, so you do NOT have access to their loyalty/order/service tools — only product search and contact info. If they ask account-specific questions, explain you can't find an account for this number and suggest they contact FATCO staff to get set up with a customer portal PIN.`;
-
-const ACCOUNT_TOOLS: Anthropic.Tool[] = [
-  {
-    name: "get_loyalty_status",
-    description:
-      "Get the customer's current loyalty points balance and any available (unredeemed) rewards.",
-    input_schema: { type: "object", properties: {} },
-  },
-  {
-    name: "get_service_history",
-    description:
-      "Get the customer's recent completed services/purchases (in-store and online), most recent first.",
-    input_schema: { type: "object", properties: {} },
-  },
-  {
-    name: "get_vehicles",
-    description: "Get the vehicles on file for this customer.",
-    input_schema: { type: "object", properties: {} },
-  },
-  {
-    name: "get_order_status",
-    description:
-      "Get the customer's online store orders and their fulfillment status (Pending/Confirmed/Completed/Cancelled).",
-    input_schema: { type: "object", properties: {} },
-  },
-];
-
-const PUBLIC_TOOLS: Anthropic.Tool[] = [
-  {
-    name: "search_products",
-    description:
-      "Search FATCO's online store catalog by name or category keyword. Returns matching products with price and stock status.",
-    input_schema: {
-      type: "object",
-      properties: {
-        query: { type: "string", description: "Search text, e.g. 'oil filter' or 'tyre'" },
-      },
-      required: ["query"],
-    },
-  },
-  {
-    name: "get_contact_info",
-    description: "Get FATCO's contact phone, email, and address.",
-    input_schema: { type: "object", properties: {} },
-  },
-];
-
-async function executeTool(
-  name: string,
-  input: unknown,
-  customerId: string | null
-): Promise<string> {
-  if (!customerId && name !== "search_products" && name !== "get_contact_info") {
-    return "No matching customer account for this conversation.";
-  }
-
-  switch (name) {
-    case "get_loyalty_status": {
-      const customer = await prisma.customer.findUnique({
-        where: { id: customerId! },
-        include: { rewards: { where: { status: "AVAILABLE" } } },
-      });
-      if (!customer) return "Account not found.";
-      return JSON.stringify({
-        pointsBalance: customer.pointsBalance,
-        availableRewards: customer.rewards.map((r) => ({
-          description: r.description,
-          value: r.value,
-        })),
-      });
-    }
-    case "get_service_history": {
-      const transactions = await prisma.transaction.findMany({
-        where: { customerId: customerId!, status: "COMPLETED" },
-        orderBy: { date: "desc" },
-        take: 5,
-        include: { lines: true, vehicle: true },
-      });
-      return JSON.stringify(
-        transactions.map((t) => ({
-          date: t.date.toISOString().slice(0, 10),
-          total: t.total,
-          vehicle: t.vehicle
-            ? [t.vehicle.make, t.vehicle.model].filter(Boolean).join(" ")
-            : null,
-          items: t.lines.map((l) => l.description),
-        }))
-      );
-    }
-    case "get_vehicles": {
-      const vehicles = await prisma.vehicle.findMany({ where: { customerId: customerId! } });
-      return JSON.stringify(
-        vehicles.map((v) => ({
-          label: [v.make, v.model, v.year].filter(Boolean).join(" "),
-          plate: v.plate,
-          mileage: v.mileage,
-        }))
-      );
-    }
-    case "get_order_status": {
-      const orders = await prisma.transaction.findMany({
-        where: { customerId: customerId!, channel: "ONLINE" },
-        orderBy: { date: "desc" },
-        take: 5,
-      });
-      return JSON.stringify(
-        orders.map((o) => ({
-          orderNumber: o.number,
-          date: o.date.toISOString().slice(0, 10),
-          total: o.total,
-          status: o.fulfillmentStatus ?? "PENDING",
-        }))
-      );
-    }
-    case "search_products": {
-      const query =
-        input && typeof input === "object" && "query" in input
-          ? String((input as { query: unknown }).query ?? "")
-          : "";
-      const items = await prisma.item.findMany({
-        where: {
-          storefrontVisible: true,
-          active: true,
-          ...(query ? { name: { contains: query, mode: "insensitive" as const } } : {}),
-        },
-        take: 8,
-      });
-      return JSON.stringify(
-        items.map((i) => ({
-          name: i.name,
-          category: i.category,
-          price: i.salePrice,
-          inStock: i.trackStock ? i.stockQty > 0 : true,
-        }))
-      );
-    }
-    case "get_contact_info": {
-      const content = await getStoreContent();
-      return JSON.stringify({
-        phone: content.footerPhone || null,
-        email: content.footerEmail || null,
-        address: content.footerAddress || null,
-        whatsapp: content.footerWhatsappUrl || null,
-      });
-    }
-    default:
-      return `Unknown tool: ${name}`;
-  }
+function detectLang(text: string): Lang {
+  return /[؀-ۿ]/.test(text) ? "ar" : "en";
 }
 
-const MAX_TOOL_ITERATIONS = 6;
-const FALLBACK_REPLY =
-  "Sorry, I'm having trouble responding right now — please try again in a moment.";
+// Strip punctuation, collapse whitespace, lowercase (Latin only — Arabic has
+// no case) so keyword regexes and word-overlap scoring are consistent.
+function normalize(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const STOPWORDS = new Set([
+  "the", "a", "an", "is", "are", "do", "does", "i", "my", "me", "you", "your",
+  "what", "how", "can", "could", "please", "for", "of", "to", "in", "on",
+  "and", "or", "at", "it", "this", "that",
+  "هل", "من", "في", "على", "عن", "الى", "إلى", "أنا", "انا", "لي", "ما", "هذا",
+]);
+
+function meaningfulWords(text: string): string[] {
+  return normalize(text)
+    .split(" ")
+    .filter((w) => w.length >= 3 && !STOPWORDS.has(w));
+}
+
+// ---------- Intent keyword rules ----------
+type Intent = "GREETING" | "LOYALTY" | "SERVICE_HISTORY" | "VEHICLES" | "ORDER_STATUS" | "PRODUCT";
+
+const INTENT_PATTERNS: { intent: Intent; pattern: RegExp }[] = [
+  { intent: "GREETING", pattern: /\b(hi|hello|hey)\b|مرحبا|مرحباً|السلام عليكم|أهلا|اهلا/i },
+  { intent: "LOYALTY", pattern: /\b(point|points|loyalty|reward|rewards)\b|نقاط|نقطة|مكاف/i },
+  { intent: "ORDER_STATUS", pattern: /\border(s)?\b|tracking|track\b|طلب|طلبي|طلباتي/i },
+  {
+    intent: "SERVICE_HISTORY",
+    pattern: /\bservice(s)?\b|history|visit(s)?|سجل|خدمة|خدمات|صيانة|زيارة/i,
+  },
+  { intent: "VEHICLES", pattern: /\b(car|cars|vehicle|vehicles)\b|سيارة|سياراتي|عربيتي/i },
+  { intent: "PRODUCT", pattern: /oil|tyre|tire|filter|battery|price|cost|زيت|إطار|اطار|فلتر|بطارية|سعر/i },
+];
+
+const CONTACT_PATTERN = /\b(contact|phone|address|location|hours|email)\b|تواصل|هاتف|عنوان|موقع|بريد/i;
+
+const CATEGORY_TERMS: { pattern: RegExp; category: string }[] = [
+  { pattern: /oil|زيت/i, category: "OIL" },
+  { pattern: /tyre|tire|إطار|اطار/i, category: "TYRE" },
+  { pattern: /filter|فلتر/i, category: "FILTER" },
+  { pattern: /battery|بطارية/i, category: "BATTERY" },
+];
+
+function detectIntent(text: string): Intent | "CONTACT" | null {
+  if (CONTACT_PATTERN.test(text)) return "CONTACT";
+  for (const { intent, pattern } of INTENT_PATTERNS) {
+    if (pattern.test(text)) return intent;
+  }
+  return null;
+}
+
+// ---------- Database-backed replies ----------
+
+async function replyLoyalty(customerId: string, lang: Lang): Promise<string> {
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    include: { rewards: { where: { status: "AVAILABLE" } } },
+  });
+  if (!customer) {
+    return lang === "ar" ? "لم أجد حسابك." : "I couldn't find your account.";
+  }
+  if (lang === "ar") {
+    let reply = `لديك ${customer.pointsBalance} نقطة ولاء.`;
+    reply +=
+      customer.rewards.length > 0
+        ? ` كما لديك مكافآت متاحة: ${customer.rewards.map((r) => r.description).join("، ")}.`
+        : " لا توجد مكافآت متاحة للاستبدال حاليًا.";
+    return reply;
+  }
+  let reply = `You have ${customer.pointsBalance} loyalty point${customer.pointsBalance === 1 ? "" : "s"}.`;
+  reply +=
+    customer.rewards.length > 0
+      ? ` You also have rewards available: ${customer.rewards.map((r) => r.description).join(", ")}.`
+      : " No rewards available to redeem right now.";
+  return reply;
+}
+
+async function replyServiceHistory(customerId: string, lang: Lang): Promise<string> {
+  const transactions = await prisma.transaction.findMany({
+    where: { customerId, status: "COMPLETED" },
+    orderBy: { date: "desc" },
+    take: 3,
+    include: { lines: true },
+  });
+  if (transactions.length === 0) {
+    return lang === "ar" ? "لا توجد زيارات مسجّلة بعد." : "No visits recorded yet.";
+  }
+  const lines = transactions.map((t) => {
+    const date = t.date.toISOString().slice(0, 10);
+    const items = t.lines.map((l) => l.description).join(", ");
+    return lang === "ar" ? `${date}: ${items} ($${t.total})` : `${date}: ${items} ($${t.total})`;
+  });
+  const header = lang === "ar" ? "آخر زياراتك:" : "Your most recent visits:";
+  return `${header}\n${lines.join("\n")}`;
+}
+
+async function replyVehicles(customerId: string, lang: Lang): Promise<string> {
+  const vehicles = await prisma.vehicle.findMany({ where: { customerId } });
+  if (vehicles.length === 0) {
+    return lang === "ar" ? "لا توجد سيارات مسجّلة على حسابك." : "No vehicles on file for your account.";
+  }
+  const list = vehicles
+    .map((v) => [v.make, v.model, v.year].filter(Boolean).join(" ") + (v.plate ? ` (${v.plate})` : ""))
+    .join(lang === "ar" ? "، " : ", ");
+  return (lang === "ar" ? "سياراتك المسجّلة: " : "Your vehicles on file: ") + list;
+}
+
+async function replyOrderStatus(customerId: string, lang: Lang): Promise<string> {
+  const orders = await prisma.transaction.findMany({
+    where: { customerId, channel: "ONLINE" },
+    orderBy: { date: "desc" },
+    take: 3,
+  });
+  if (orders.length === 0) {
+    return lang === "ar" ? "لا توجد طلبات عبر المتجر الإلكتروني." : "No online store orders found.";
+  }
+  const lines = orders.map(
+    (o) => `#${o.number} — ${o.fulfillmentStatus ?? "PENDING"} — $${o.total}`
+  );
+  const header = lang === "ar" ? "طلباتك الأخيرة:" : "Your recent orders:";
+  return `${header}\n${lines.join("\n")}`;
+}
+
+async function replyProducts(userMessage: string, lang: Lang): Promise<string> {
+  const matchedCategories = CATEGORY_TERMS.filter((c) => c.pattern.test(userMessage)).map(
+    (c) => c.category
+  );
+  const items = await prisma.item.findMany({
+    where: {
+      storefrontVisible: true,
+      active: true,
+      ...(matchedCategories.length ? { category: { in: matchedCategories } } : {}),
+    },
+    take: 5,
+    orderBy: { name: "asc" },
+  });
+  if (items.length === 0) {
+    return lang === "ar"
+      ? "لم أجد منتجات مطابقة. تصفّح المتجر الإلكتروني لرؤية كل المنتجات."
+      : "I couldn't find a matching product — browse the full catalog at /shop.";
+  }
+  const lines = items.map((i) => {
+    const name = (lang === "ar" && i.nameAr) || i.name;
+    const stock = i.trackStock && i.stockQty <= 0 ? (lang === "ar" ? " (غير متوفر)" : " (out of stock)") : "";
+    return `${name} — $${i.salePrice}${stock}`;
+  });
+  const header = lang === "ar" ? "وجدت هذه المنتجات:" : "Here's what I found:";
+  return `${header}\n${lines.join("\n")}`;
+}
+
+async function replyContact(lang: Lang): Promise<string> {
+  const content = await getStoreContent();
+  const parts: string[] = [];
+  if (content.footerPhone) parts.push(content.footerPhone);
+  if (content.footerEmail) parts.push(content.footerEmail);
+  const address = (lang === "ar" && content.footerAddressAr) || content.footerAddress;
+  if (address) parts.push(address);
+  if (parts.length === 0) {
+    return lang === "ar"
+      ? "يرجى زيارة المتجر الإلكتروني للتواصل معنا."
+      : "Please visit our online store for ways to reach us.";
+  }
+  return (lang === "ar" ? "يمكنك التواصل معنا عبر: " : "You can reach FATCO at: ") + parts.join(" · ");
+}
+
+// ---------- Knowledge base search (keyword overlap, no LLM) ----------
+
+async function searchKnowledgeBase(userMessage: string, lang: Lang): Promise<string | null> {
+  const entries = await prisma.knowledgeBaseEntry.findMany({ where: { active: true } });
+  if (entries.length === 0) return null;
+
+  const queryWords = new Set(meaningfulWords(userMessage));
+  if (queryWords.size === 0) return null;
+
+  let best: { entry: (typeof entries)[number]; score: number } | null = null;
+  for (const entry of entries) {
+    const haystack = [entry.question, entry.questionAr ?? "", entry.keywords ?? ""].join(" ");
+    const entryWords = meaningfulWords(haystack);
+    const score = entryWords.filter((w) => queryWords.has(w)).length;
+    if (score > 0 && (!best || score > best.score)) {
+      best = { entry, score };
+    }
+  }
+  if (!best) return null;
+  return (lang === "ar" && best.entry.answerAr) || best.entry.answer;
+}
+
+const MAX_HISTORY = 20;
 
 // Runs one turn of the shared support chatbot (portal + WhatsApp). `key` is
 // the conversation identity: customerId for PORTAL, normalized phone digits
 // for WHATSAPP (customerId is additionally set there once matched, unlocking
-// the account tools).
+// the account-specific replies).
 export async function runChatTurn(opts: {
   customerId: string | null;
   channel: ChatChannel;
@@ -181,15 +220,7 @@ export async function runChatTurn(opts: {
   userMessage: string;
 }): Promise<string> {
   const { customerId, channel, key, userMessage } = opts;
-
-  const historyRows = await prisma.chatMessage.findMany({
-    where:
-      channel === "PORTAL"
-        ? { channel, customerId: key }
-        : { channel, phone: key },
-    orderBy: { createdAt: "asc" },
-    take: 20,
-  });
+  const lang = detectLang(userMessage);
 
   await prisma.chatMessage.create({
     data: {
@@ -201,52 +232,7 @@ export async function runChatTurn(opts: {
     },
   });
 
-  const messages: Anthropic.MessageParam[] = [
-    ...historyRows.map((m) => ({
-      role: m.role === "USER" ? ("user" as const) : ("assistant" as const),
-      content: m.content,
-    })),
-    { role: "user", content: userMessage },
-  ];
-
-  const tools = customerId ? [...ACCOUNT_TOOLS, ...PUBLIC_TOOLS] : PUBLIC_TOOLS;
-  const system = customerId ? SYSTEM_PROMPT : SYSTEM_PROMPT + GUEST_SYSTEM_SUFFIX;
-
-  let finalText = FALLBACK_REPLY;
-
-  for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
-    const response = await client.messages.create({
-      model: "claude-opus-5",
-      max_tokens: 1024,
-      system,
-      tools,
-      messages,
-      output_config: { effort: "low" },
-    });
-
-    const textBlocks = response.content.filter(
-      (b): b is Anthropic.TextBlock => b.type === "text"
-    );
-    const toolUses = response.content.filter(
-      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
-    );
-
-    if (response.stop_reason !== "tool_use" || toolUses.length === 0) {
-      finalText = textBlocks.map((b) => b.text).join("\n").trim() || finalText;
-      break;
-    }
-
-    messages.push({ role: "assistant", content: response.content });
-
-    const toolResults: Anthropic.ToolResultBlockParam[] = [];
-    for (const toolUse of toolUses) {
-      const result = await executeTool(toolUse.name, toolUse.input, customerId).catch(
-        (e) => `Error: ${e instanceof Error ? e.message : "tool failed"}`
-      );
-      toolResults.push({ type: "tool_result", tool_use_id: toolUse.id, content: result });
-    }
-    messages.push({ role: "user", content: toolResults });
-  }
+  const reply = await buildReply(userMessage, customerId, lang);
 
   await prisma.chatMessage.create({
     data: {
@@ -254,9 +240,59 @@ export async function runChatTurn(opts: {
       customerId,
       phone: channel === "WHATSAPP" ? key : null,
       role: "ASSISTANT",
-      content: finalText,
+      content: reply,
     },
   });
 
-  return finalText;
+  // Keep the conversation log bounded — trim anything beyond the most
+  // recent MAX_HISTORY messages for this conversation.
+  const where =
+    channel === "PORTAL" ? { channel, customerId: key } : { channel, phone: key };
+  const total = await prisma.chatMessage.count({ where });
+  if (total > MAX_HISTORY) {
+    const stale = await prisma.chatMessage.findMany({
+      where,
+      orderBy: { createdAt: "asc" },
+      take: total - MAX_HISTORY,
+      select: { id: true },
+    });
+    await prisma.chatMessage.deleteMany({ where: { id: { in: stale.map((m) => m.id) } } });
+  }
+
+  return reply;
+}
+
+async function buildReply(
+  userMessage: string,
+  customerId: string | null,
+  lang: Lang
+): Promise<string> {
+  const settings = await getChatbotSettings();
+  const intent = detectIntent(userMessage);
+  const noAccount = () =>
+    lang === "ar"
+      ? "لم أجد حسابًا مرتبطًا بهذه المحادثة. يرجى التواصل مع فريق فاتكو للحصول على رمز بوابة العملاء."
+      : "I couldn't find an account for this conversation — please contact FATCO staff to get set up with a portal PIN.";
+
+  switch (intent) {
+    case "GREETING":
+      return lang === "ar" ? settings.greetingAr : settings.greeting;
+    case "CONTACT":
+      return replyContact(lang);
+    case "PRODUCT":
+      return replyProducts(userMessage, lang);
+    case "LOYALTY":
+      return customerId ? replyLoyalty(customerId, lang) : noAccount();
+    case "SERVICE_HISTORY":
+      return customerId ? replyServiceHistory(customerId, lang) : noAccount();
+    case "VEHICLES":
+      return customerId ? replyVehicles(customerId, lang) : noAccount();
+    case "ORDER_STATUS":
+      return customerId ? replyOrderStatus(customerId, lang) : noAccount();
+    default: {
+      const kbAnswer = await searchKnowledgeBase(userMessage, lang);
+      if (kbAnswer) return kbAnswer;
+      return lang === "ar" ? settings.fallbackMessageAr : settings.fallbackMessage;
+    }
+  }
 }
