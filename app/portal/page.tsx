@@ -1,10 +1,12 @@
 import Link from "next/link";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, User, Wrench } from "lucide-react";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requirePortal } from "@/lib/session";
 import { formatMoney, formatDate } from "@/lib/format";
 import { getDictionary } from "@/lib/i18n";
+import { computeDueReminders } from "@/lib/reminders";
+import { getLoyaltyProgress } from "@/lib/loyalty";
 
 export const dynamic = "force-dynamic";
 
@@ -12,20 +14,25 @@ export default async function PortalDashboard() {
   const session = await requirePortal();
   const { t } = await getDictionary();
 
-  const customer = await prisma.customer.findUnique({
-    where: { id: session.sub },
-    include: {
-      vehicles: { orderBy: { createdAt: "asc" } },
-      transactions: {
-        where: { status: "COMPLETED" },
-        orderBy: { date: "desc" },
-        include: { lines: true, vehicle: true },
+  const [customer, allDueReminders, loyaltyProgress] = await Promise.all([
+    prisma.customer.findUnique({
+      where: { id: session.sub },
+      include: {
+        vehicles: { orderBy: { createdAt: "asc" } },
+        transactions: {
+          where: { status: "COMPLETED" },
+          orderBy: { date: "desc" },
+          include: { lines: true, vehicle: true },
+        },
+        rewards: { where: { status: "AVAILABLE" }, orderBy: { createdAt: "desc" } },
       },
-      rewards: { where: { status: "AVAILABLE" }, orderBy: { createdAt: "desc" } },
-    },
-  });
+    }),
+    computeDueReminders(),
+    getLoyaltyProgress(session.sub),
+  ]);
   if (!customer) notFound();
 
+  const upcomingReminders = allDueReminders.filter((r) => r.customerId === session.sub);
   const totalSpent = customer.transactions.reduce((s, tx) => s + tx.total, 0);
 
   return (
@@ -37,13 +44,22 @@ export default async function PortalDashboard() {
         <p className="text-sm text-zinc-500">{t.portal.accountSubtitle}</p>
       </div>
 
-      <Link
-        href="/portal/chat"
-        className="card flex items-center gap-3 border-brand/20 bg-brand/5 p-4 text-sm font-medium text-brand hover:bg-brand/10"
-      >
-        <MessageCircle size={18} />
-        {t.portal.chatLink}
-      </Link>
+      <div className="grid grid-cols-2 gap-3">
+        <Link
+          href="/portal/chat"
+          className="card flex items-center gap-3 border-brand/20 bg-brand/5 p-4 text-sm font-medium text-brand hover:bg-brand/10"
+        >
+          <MessageCircle size={18} />
+          {t.portal.chatLink}
+        </Link>
+        <Link
+          href="/portal/profile"
+          className="card flex items-center gap-3 p-4 text-sm font-medium text-zinc-600 hover:bg-zinc-50"
+        >
+          <User size={18} />
+          {t.portal.editProfile}
+        </Link>
+      </div>
 
       {/* Points + rewards */}
       <div className="grid grid-cols-2 gap-4">
@@ -58,6 +74,53 @@ export default async function PortalDashboard() {
           <div className="text-xs text-zinc-500">{t.portal.totalSpent}</div>
         </div>
       </div>
+
+      {loyaltyProgress.length > 0 && (
+        <div className="card space-y-4 p-5">
+          <h2 className="text-sm font-semibold text-zinc-700">{t.portal.loyaltyProgress}</h2>
+          {loyaltyProgress.map((p) => (
+            <div key={p.ruleId}>
+              <div className="mb-1 flex justify-between text-sm">
+                <span>{t.portal.loyaltyProgressLine(p.current, p.threshold, p.serviceName)}</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-zinc-100">
+                <div
+                  className="h-full rounded-full bg-brand"
+                  style={{ width: `${Math.min(100, (p.current / p.threshold) * 100)}%` }}
+                />
+              </div>
+              {p.threshold - p.current > 0 && (
+                <p className="mt-1 text-xs text-zinc-400">
+                  {t.portal.loyaltyProgressHint(p.threshold - p.current, p.rewardDescription)}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {upcomingReminders.length > 0 && (
+        <div className="card border-amber-200 bg-amber-50 p-5">
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-800">
+            <Wrench size={16} />
+            {t.portal.upcomingService}
+          </h2>
+          <ul className="space-y-1 text-sm text-amber-900">
+            {upcomingReminders.map((r) => (
+              <li key={`${r.vehicleId}-${r.serviceTypeId}`} className="flex justify-between">
+                <span>
+                  {r.serviceName} — {r.vehicleLabel}
+                </span>
+                <span className="text-xs">
+                  {r.status === "overdue"
+                    ? t.portal.overdueLabel
+                    : t.portal.dueSoonLabel(r.daysUntilDue ?? 0)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {customer.rewards.length > 0 && (
         <div className="card border-emerald-200 bg-emerald-50 p-5">
@@ -137,6 +200,12 @@ export default async function PortalDashboard() {
                     </li>
                   ))}
                 </ul>
+                <Link
+                  href={`/portal/receipts/${tx.id}`}
+                  className="mt-2 inline-block text-xs font-medium text-brand hover:underline"
+                >
+                  {t.portal.viewReceipt}
+                </Link>
               </div>
             ))}
           </div>

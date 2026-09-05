@@ -4,25 +4,30 @@ import { formatMoney } from "@/lib/format";
 import { STOREFRONT_PAYMENT_METHODS } from "@/lib/constants";
 import { getDictionary } from "@/lib/i18n";
 import { placeOrderAction } from "../actions";
+import RewardSelector from "./RewardSelector";
 
 export const dynamic = "force-dynamic";
 
 export default async function CheckoutPage() {
   const session = await requirePortal();
   const { locale, t } = await getDictionary();
-  const [cartItems, customer] = await Promise.all([
+  const [cartItems, customer, rewards] = await Promise.all([
     prisma.cartItem.findMany({
       where: { customerId: session.sub },
       include: { item: true },
     }),
     prisma.customer.findUnique({ where: { id: session.sub } }),
+    prisma.reward.findMany({
+      where: { customerId: session.sub, status: "AVAILABLE" },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
 
   if (cartItems.length === 0) {
     return <p className="text-zinc-500">{t.shop.cartEmpty}</p>;
   }
 
-  const total = cartItems.reduce((s, c) => s + c.item.salePrice * c.qty, 0);
+  const subtotal = cartItems.reduce((s, c) => s + c.item.salePrice * c.qty, 0);
   const defaultAddress = [
     customer?.address,
     customer?.subDistrict,
@@ -55,8 +60,8 @@ export default async function CheckoutPage() {
           );
         })}
         <div className="mt-2 flex justify-between border-t border-zinc-100 pt-2 font-semibold">
-          <span>{t.shop.total}</span>
-          <span>{formatMoney(total)}</span>
+          <span>{rewards.length > 0 ? t.shop.subtotal : t.shop.total}</span>
+          <span>{formatMoney(subtotal)}</span>
         </div>
       </div>
 
@@ -85,6 +90,16 @@ export default async function CheckoutPage() {
           <label className="label">{t.shop.notesOptional}</label>
           <textarea name="notes" rows={2} className="input" />
         </div>
+        {rewards.length > 0 && (
+          <RewardSelector
+            rewards={rewards}
+            subtotal={subtotal}
+            label={t.shop.applyReward}
+            noneLabel={t.shop.noReward}
+            discountLabel={t.shop.discount}
+            totalLabel={t.shop.total}
+          />
+        )}
         <button type="submit" className="btn-brand w-full">
           {t.shop.placeOrder}
         </button>

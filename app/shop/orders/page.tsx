@@ -23,22 +23,24 @@ export default async function MyOrdersPage() {
       ) : (
         <div className="card divide-y divide-zinc-100">
           {orders.map((o) => (
-            <Link
-              key={o.id}
-              href={`/shop/orders/${o.id}`}
-              className="flex items-center justify-between p-4 hover:bg-zinc-50"
-            >
-              <div>
+            <div key={o.id} className="flex items-center justify-between p-4 hover:bg-zinc-50">
+              <Link href={`/shop/orders/${o.id}`} className="flex-1">
                 <div className="font-medium">{t.shop.orderNumber(o.number)}</div>
                 <div className="text-sm text-zinc-500">{formatDateTime(o.date)}</div>
-              </div>
-              <div className="text-end">
+              </Link>
+              <Link href={`/shop/orders/${o.id}`} className="text-end">
                 <div className="font-medium">{formatMoney(o.total)}</div>
                 <div className="text-sm text-zinc-500">
                   {FULFILLMENT_STATUS_LABEL[(o.fulfillmentStatus ?? "PENDING") as FulfillmentStatus]}
                 </div>
-              </div>
-            </Link>
+              </Link>
+              <Link
+                href={`/portal/receipts/${o.id}`}
+                className="ms-4 text-xs font-medium text-brand hover:underline"
+              >
+                {t.portal.viewReceipt}
+              </Link>
+            </div>
           ))}
         </div>
       )}

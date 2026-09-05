@@ -2,9 +2,11 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getDictionary } from "@/lib/i18n";
 import { getStoreContent } from "@/lib/storeContent";
+import { getPortalSession } from "@/lib/session";
 import CategorySidebar from "./CategorySidebar";
 import CategoryDrawer from "./CategoryDrawer";
 import ProductCard from "./ProductCard";
+import WishlistButton from "./WishlistButton";
 import Hero from "./Hero";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +19,7 @@ export default async function ShopPage({
   const { q, category } = await searchParams;
   const { locale, t } = await getDictionary();
   const isHome = !q && !category;
+  const session = await getPortalSession();
 
   const [items, categoryRows, storeContent, topLines] = await Promise.all([
     prisma.item.findMany({
@@ -84,6 +87,56 @@ export default async function ShopPage({
       ? outOfStockBundleIds.has(item.id)
       : item.trackStock && item.stockQty <= 0;
 
+  // Batched rating aggregate + wishlist membership across the whole grid, to
+  // avoid an N+1 query per card.
+  const allIds = [...items, ...topSellers].map((i) => i.id);
+  const [ratingRows, wishlistRows] = await Promise.all([
+    allIds.length
+      ? prisma.review.groupBy({
+          by: ["itemId"],
+          where: { itemId: { in: allIds } },
+          _avg: { rating: true },
+          _count: { _all: true },
+        })
+      : Promise.resolve([]),
+    session && allIds.length
+      ? prisma.wishlistItem.findMany({
+          where: { customerId: session.sub, itemId: { in: allIds } },
+          select: { itemId: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const ratingByItem = new Map(
+    ratingRows.map((r) => [r.itemId, { avg: r._avg.rating ?? 0, count: r._count._all }])
+  );
+  const wishlistedIds = new Set(wishlistRows.map((w) => w.itemId));
+
+  const renderCard = (item: (typeof items)[number], redirectTo: string) => {
+    const rating = ratingByItem.get(item.id);
+    return (
+      <ProductCard
+        key={item.id}
+        id={item.id}
+        name={(locale === "ar" && item.nameAr) || item.name}
+        category={item.category}
+        imageUrl={item.imageUrl}
+        salePrice={item.salePrice}
+        outOfStock={isOutOfStock(item)}
+        outOfStockLabel={t.shop.outOfStock}
+        avgRating={rating?.avg}
+        reviewCount={rating?.count}
+        wishlistButton={
+          <WishlistButton
+            itemId={item.id}
+            active={wishlistedIds.has(item.id)}
+            redirectTo={redirectTo}
+            label={t.shop.wishlistToggle}
+          />
+        }
+      />
+    );
+  };
+
   return (
     <div>
       {isHome && storeContent && <Hero content={storeContent} locale={locale} />}
@@ -92,18 +145,7 @@ export default async function ShopPage({
         <div className="mb-10">
           <h2 className="mb-4 text-lg font-semibold">{t.shop.topSellers}</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {topSellers.map((item) => (
-              <ProductCard
-                key={item.id}
-                id={item.id}
-                name={(locale === "ar" && item.nameAr) || item.name}
-                category={item.category}
-                imageUrl={item.imageUrl}
-                salePrice={item.salePrice}
-                outOfStock={isOutOfStock(item)}
-                outOfStockLabel={t.shop.outOfStock}
-              />
-            ))}
+            {topSellers.map((item) => renderCard(item, "/shop"))}
           </div>
         </div>
       )}
@@ -143,18 +185,7 @@ export default async function ShopPage({
             <p className="text-zinc-500">{t.shop.noResults}</p>
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {items.map((item) => (
-                <ProductCard
-                  key={item.id}
-                  id={item.id}
-                  name={(locale === "ar" && item.nameAr) || item.name}
-                  category={item.category}
-                  imageUrl={item.imageUrl}
-                  salePrice={item.salePrice}
-                  outOfStock={isOutOfStock(item)}
-                  outOfStockLabel={t.shop.outOfStock}
-                />
-              ))}
+              {items.map((item) => renderCard(item, "/shop"))}
             </div>
           )}
         </div>

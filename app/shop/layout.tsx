@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { ShoppingCart, User } from "lucide-react";
+import { ShoppingCart, User, Heart } from "lucide-react";
 import { getPortalSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getDictionary } from "@/lib/i18n";
@@ -59,6 +59,15 @@ export default async function ShopLayout({
             ) : (
               <Link href="/portal/login?next=/shop" className="text-zinc-600 hover:text-brand">
                 {t.common.signIn}
+              </Link>
+            )}
+            {session && (
+              <Link
+                href="/shop/wishlist"
+                aria-label={t.shop.wishlistTitle}
+                className="text-zinc-600 hover:text-brand"
+              >
+                <Heart size={18} />
               </Link>
             )}
             <Link

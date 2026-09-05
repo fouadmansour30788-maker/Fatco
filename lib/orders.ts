@@ -1,19 +1,23 @@
 import { prisma } from "./prisma";
 import { decrementInventory, applyLoyalty } from "./sales";
 import { expandBundleLine, checkBundleAvailability } from "./bundles";
+import { getMessagingProvider } from "./messaging";
 
 export type PlaceOrderInput = {
   customerId: string;
   paymentMethod: string;
   shippingAddress: string;
   notes?: string;
+  redeemRewardId?: string;
 };
 
 // Pure business logic for the storefront checkout flow. Mirrors recordSale in
 // lib/sales.ts but defers inventory/loyalty side effects: an online order
 // only touches stock + loyalty once staff mark it COMPLETED (see
 // completeOrder below), matching the point at which an in-store sale would
-// be rung up.
+// be rung up. A selected reward, however, is redeemed immediately at
+// placement (same timing as an in-store sale) since the discount must be
+// reflected in the order total right away.
 export async function placeOrder(input: PlaceOrderInput) {
   const cartItems = await prisma.cartItem.findMany({
     where: { customerId: input.customerId },
@@ -55,6 +59,20 @@ export async function placeOrder(input: PlaceOrderInput) {
   const subtotal = round2(lineCreates.reduce((s, l) => s + l.lineTotal, 0));
   const cost = round2(lineCreates.reduce((s, l) => s + l.unitCost * l.qty, 0));
 
+  // Resolve the reward being redeemed, if any (must belong to the customer &
+  // be available) — same validation recordSale applies to in-store sales.
+  const reward = input.redeemRewardId
+    ? await prisma.reward.findFirst({
+        where: {
+          id: input.redeemRewardId,
+          customerId: input.customerId,
+          status: "AVAILABLE",
+        },
+      })
+    : null;
+  const discount = reward?.value ?? 0;
+  const total = round2(Math.max(0, subtotal - discount));
+
   const last = await prisma.transaction.findFirst({
     where: { number: { not: null } },
     orderBy: { number: "desc" },
@@ -70,7 +88,8 @@ export async function placeOrder(input: PlaceOrderInput) {
       channel: "ONLINE",
       fulfillmentStatus: "PENDING",
       subtotal,
-      total: subtotal,
+      discount,
+      total,
       cost,
       paymentMethod: input.paymentMethod,
       notes: input.notes,
@@ -81,15 +100,35 @@ export async function placeOrder(input: PlaceOrderInput) {
 
   await prisma.cartItem.deleteMany({ where: { customerId: input.customerId } });
 
-  return { id: tx.id, number, total: subtotal };
+  if (reward) {
+    await prisma.reward.update({
+      where: { id: reward.id },
+      data: { status: "REDEEMED", redeemedTxId: tx.id, redeemedAt: new Date() },
+    });
+    await prisma.loyaltyLedger.create({
+      data: {
+        customerId: input.customerId,
+        transactionId: tx.id,
+        type: "REDEEM",
+        points: 0,
+        note: `Redeemed: ${reward.description}`,
+      },
+    });
+  }
+
+  await notifyOrderStatus(tx.id, "received");
+
+  return { id: tx.id, number, total, rewardDiscount: discount };
 }
 
 export async function confirmOrder(transactionId: string) {
   const tx = await requireOnlineOrder(transactionId, ["PENDING"]);
-  return prisma.transaction.update({
+  const updated = await prisma.transaction.update({
     where: { id: tx.id },
     data: { fulfillmentStatus: "CONFIRMED" },
   });
+  await notifyOrderStatus(tx.id, "confirmed");
+  return updated;
 }
 
 export async function completeOrder(transactionId: string) {
@@ -121,15 +160,31 @@ export async function completeOrder(transactionId: string) {
     });
   }
 
+  await notifyOrderStatus(tx.id, "completed");
+
   return updated;
 }
 
 export async function cancelOrder(transactionId: string) {
   const tx = await requireOnlineOrder(transactionId, ["PENDING", "CONFIRMED"]);
-  return prisma.transaction.update({
+  const updated = await prisma.transaction.update({
     where: { id: tx.id },
     data: { status: "VOID", fulfillmentStatus: "CANCELLED" },
   });
+
+  // A cancelled online order shouldn't burn a reward that was redeemed at
+  // checkout — revert it so the customer can use it on a future order/sale.
+  const redeemedReward = await prisma.reward.findFirst({
+    where: { redeemedTxId: tx.id, status: "REDEEMED" },
+  });
+  if (redeemedReward) {
+    await prisma.reward.update({
+      where: { id: redeemedReward.id },
+      data: { status: "AVAILABLE", redeemedTxId: null, redeemedAt: null },
+    });
+  }
+
+  return updated;
 }
 
 async function requireOnlineOrder(transactionId: string, allowed: string[]) {
@@ -139,6 +194,29 @@ async function requireOnlineOrder(transactionId: string, allowed: string[]) {
     throw new Error(`Order can't be updated from status "${tx.fulfillmentStatus}"`);
   }
   return tx;
+}
+
+// Sends an automatic status update via the active messaging provider (see
+// lib/messaging.ts — same provider service reminders and back-in-stock
+// alerts use). Silently skipped when there's no phone on file; never throws,
+// since a notification failure shouldn't block the order lifecycle action.
+async function notifyOrderStatus(
+  transactionId: string,
+  stage: "received" | "confirmed" | "completed"
+) {
+  const tx = await prisma.transaction.findUnique({
+    where: { id: transactionId },
+    include: { customer: true },
+  });
+  if (!tx?.customer?.phone) return;
+
+  const messages: Record<typeof stage, string> = {
+    received: `Hi ${tx.customer.name.split(" ")[0]}, FATCO received your order #${tx.number}. We'll notify you once it's confirmed.`,
+    confirmed: `Hi ${tx.customer.name.split(" ")[0]}, your FATCO order #${tx.number} is confirmed and being prepared.`,
+    completed: `Hi ${tx.customer.name.split(" ")[0]}, your FATCO order #${tx.number} is ready/completed. Thanks for shopping with us!`,
+  };
+
+  await getMessagingProvider().send(tx.customer.phone, messages[stage]);
 }
 
 function round2(n: number) {

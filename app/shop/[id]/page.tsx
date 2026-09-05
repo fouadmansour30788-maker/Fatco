@@ -2,12 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Package } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatDate } from "@/lib/format";
 import { getPortalSession } from "@/lib/session";
 import { getDictionary } from "@/lib/i18n";
-import { addToCart, requestBackInStockAlert } from "../actions";
+import { addToCart, requestBackInStockAlert, submitReview } from "../actions";
 import ProductCard from "../ProductCard";
 import QtyStepper from "../QtyStepper";
+import WishlistButton from "../WishlistButton";
+import { StarRatingInput, StarDisplay } from "../StarRating";
 
 export const dynamic = "force-dynamic";
 
@@ -38,25 +40,54 @@ export default async function ProductPage({
   const lowStock =
     !isBundle && !outOfStock && item.trackStock && item.stockQty <= item.reorderLevel;
 
-  const [existingAlert, related] = await Promise.all([
-    session
-      ? prisma.backInStockAlert.findUnique({
-          where: { itemId_customerId: { itemId: item.id, customerId: session.sub } },
-        })
-      : null,
-    item.category
-      ? prisma.item.findMany({
-          where: {
-            storefrontVisible: true,
-            active: true,
-            category: item.category,
-            id: { not: item.id },
-          },
-          take: 4,
-          orderBy: { name: "asc" },
-        })
-      : [],
-  ]);
+  const [existingAlert, related, wishlisted, ratingAgg, reviews, purchased, myReview] =
+    await Promise.all([
+      session
+        ? prisma.backInStockAlert.findUnique({
+            where: { itemId_customerId: { itemId: item.id, customerId: session.sub } },
+          })
+        : null,
+      item.category
+        ? prisma.item.findMany({
+            where: {
+              storefrontVisible: true,
+              active: true,
+              category: item.category,
+              id: { not: item.id },
+            },
+            take: 4,
+            orderBy: { name: "asc" },
+          })
+        : [],
+      session
+        ? prisma.wishlistItem.findUnique({
+            where: { customerId_itemId: { customerId: session.sub, itemId: item.id } },
+          })
+        : null,
+      prisma.review.aggregate({
+        where: { itemId: item.id },
+        _avg: { rating: true },
+        _count: { _all: true },
+      }),
+      prisma.review.findMany({
+        where: { itemId: item.id },
+        include: { customer: true },
+        orderBy: { createdAt: "desc" },
+      }),
+      session
+        ? prisma.transactionLine.findFirst({
+            where: {
+              itemId: item.id,
+              transaction: { customerId: session.sub, status: "COMPLETED" },
+            },
+          })
+        : null,
+      session
+        ? prisma.review.findUnique({
+            where: { customerId_itemId: { customerId: session.sub, itemId: item.id } },
+          })
+        : null,
+    ]);
 
   const name = (locale === "ar" && item.nameAr) || item.name;
   const description = (locale === "ar" && item.descriptionAr) || item.description;
@@ -83,16 +114,28 @@ export default async function ProductPage({
       </nav>
 
       <div className="grid gap-8 md:grid-cols-2">
-        <div className="card flex aspect-square items-center justify-center overflow-hidden bg-zinc-100">
-          {item.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={item.imageUrl}
-              alt={name}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <Package className="text-zinc-300" size={64} />
+        <div className="relative">
+          <div className="card flex aspect-square items-center justify-center overflow-hidden bg-zinc-100">
+            {item.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={item.imageUrl}
+                alt={name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <Package className="text-zinc-300" size={64} />
+            )}
+          </div>
+          {session && (
+            <div className="absolute end-3 top-3">
+              <WishlistButton
+                itemId={item.id}
+                active={Boolean(wishlisted)}
+                redirectTo={`/shop/${item.id}`}
+                label={t.shop.wishlistToggle}
+              />
+            </div>
           )}
         </div>
         <div>
@@ -110,6 +153,14 @@ export default async function ProductPage({
                   {t.shop.unitLabel}: {item.unit}
                 </span>
               )}
+            </div>
+          )}
+          {ratingAgg._count._all > 0 && (
+            <div className="mt-1 flex items-center gap-2 text-sm">
+              <StarDisplay value={ratingAgg._avg.rating ?? 0} />
+              <span className="text-zinc-500">
+                {t.shop.reviewCount(ratingAgg._count._all)}
+              </span>
             </div>
           )}
           <div className="mt-2 text-2xl font-bold">{formatMoney(item.salePrice)}</div>
@@ -200,6 +251,58 @@ export default async function ProductPage({
           </div>
         </div>
       )}
+
+      <div className="mt-12 max-w-2xl">
+        <h2 className="mb-4 text-lg font-semibold">{t.shop.reviewsTitle}</h2>
+
+        {session && purchased && (
+          <form action={submitReview} className="card mb-6 space-y-3 p-4">
+            <input type="hidden" name="itemId" value={item.id} />
+            <div>
+              <label className="label">{t.shop.yourRating}</label>
+              <StarRatingInput defaultValue={myReview?.rating} />
+            </div>
+            <div>
+              <label className="label">{t.shop.yourReview}</label>
+              <textarea
+                name="comment"
+                rows={3}
+                defaultValue={myReview?.comment ?? ""}
+                className="input"
+              />
+            </div>
+            <button type="submit" className="btn-brand">
+              {t.shop.submitReview}
+            </button>
+          </form>
+        )}
+        {session && !purchased && (
+          <p className="mb-6 text-sm text-zinc-400">{t.shop.mustPurchaseToReview}</p>
+        )}
+
+        {reviews.length === 0 ? (
+          <p className="text-sm text-zinc-400">{t.shop.noReviewsYet}</p>
+        ) : (
+          <div className="space-y-4">
+            {reviews.map((r) => (
+              <div key={r.id} className="card p-4">
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-sm font-medium">
+                    {r.customer.name.split(" ")[0]}
+                  </span>
+                  <span className="text-xs text-zinc-400">{formatDate(r.createdAt)}</span>
+                </div>
+                <StarDisplay value={r.rating} size="text-sm" />
+                {r.comment && (
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-600">
+                    {r.comment}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

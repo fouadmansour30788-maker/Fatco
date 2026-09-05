@@ -49,6 +49,8 @@ model Customer {
   cartItems         CartItem[]
   backInStockAlerts BackInStockAlert[]
   chatMessages      ChatMessage[]
+  wishlistItems     WishlistItem[]
+  reviews           Review[]
 
   @@index([phone])
   @@index([type])
@@ -102,8 +104,42 @@ model Item {
   bundleComponents  BundleComponent[]   @relation("BundleComponents") // this item's components, when kind=BUNDLE
   componentOf       BundleComponent[]   @relation("BundleComponentOf") // bundles this item is used inside
   backInStockAlerts BackInStockAlert[]
+  wishlistedBy      WishlistItem[]
+  reviews           Review[]
 
   @@index([category])
+}
+
+// Storefront "save for later" list, persisted per customer.
+model WishlistItem {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  itemId     String
+  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([customerId, itemId])
+  @@index([customerId])
+}
+
+// A customer's rating/review of a product. Only allowed for a verified
+// purchase (checked at write time against TransactionLine/Transaction — see
+// app/shop/actions.ts#submitReview), not stored redundantly on the row.
+// Re-reviewing the same product updates the existing row (one per pair).
+model Review {
+  id         String   @id @default(cuid())
+  itemId     String
+  item       Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  rating     Int // 1-5
+  comment    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([customerId, itemId])
+  @@index([itemId])
 }
 
 // Links a BUNDLE-kind Item to the real Items it's made of, so checkout can

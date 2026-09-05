@@ -54,9 +54,14 @@ export default async function MyOrderDetailPage({
         <p className="text-zinc-600">{order.paymentMethod}</p>
       </div>
 
-      <Link href="/shop/orders" className="mt-4 inline-block text-brand hover:underline">
-        {t.shop.allOrders}
-      </Link>
+      <div className="mt-4 flex items-center gap-4">
+        <Link href="/shop/orders" className="text-brand hover:underline">
+          {t.shop.allOrders}
+        </Link>
+        <Link href={`/portal/receipts/${order.id}`} className="text-brand hover:underline">
+          {t.portal.viewReceipt}
+        </Link>
+      </div>
     </div>
   );
 }

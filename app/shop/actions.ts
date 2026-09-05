@@ -74,6 +74,7 @@ export async function placeOrderAction(formData: FormData) {
   const shippingAddress = String(formData.get("shippingAddress") || "").trim();
   const paymentMethod = String(formData.get("paymentMethod") || "CASH");
   const notes = String(formData.get("notes") || "").trim() || undefined;
+  const redeemRewardId = String(formData.get("redeemRewardId") || "") || undefined;
   if (!shippingAddress) throw new Error("Delivery/pickup address is required");
 
   const order = await placeOrder({
@@ -81,7 +82,54 @@ export async function placeOrderAction(formData: FormData) {
     paymentMethod,
     shippingAddress,
     notes,
+    redeemRewardId,
   });
   revalidatePath("/shop/orders");
   redirect(`/shop/orders/${order.id}`);
+}
+
+export async function toggleWishlist(formData: FormData) {
+  const session = await getPortalSession();
+  const itemId = String(formData.get("itemId") || "");
+  const redirectTo = String(formData.get("redirectTo") || `/shop/${itemId}`);
+  if (!session) {
+    redirect(`/portal/login?next=${encodeURIComponent(redirectTo)}`);
+  }
+  if (!itemId) return;
+
+  const existing = await prisma.wishlistItem.findUnique({
+    where: { customerId_itemId: { customerId: session.sub, itemId } },
+  });
+  if (existing) {
+    await prisma.wishlistItem.delete({ where: { id: existing.id } });
+  } else {
+    await prisma.wishlistItem.create({ data: { customerId: session.sub, itemId } });
+  }
+  revalidatePath(redirectTo);
+  revalidatePath("/shop/wishlist");
+}
+
+export async function submitReview(formData: FormData) {
+  const session = await requirePortal();
+  const itemId = String(formData.get("itemId") || "");
+  const rating = Number(formData.get("rating") || 0);
+  const comment = String(formData.get("comment") || "").trim() || undefined;
+  if (!itemId || !Number.isInteger(rating) || rating < 1 || rating > 5) return;
+
+  // Never trust the client-rendered form gate alone — re-verify the customer
+  // actually has a completed purchase of this item before allowing a review.
+  const purchased = await prisma.transactionLine.findFirst({
+    where: {
+      itemId,
+      transaction: { customerId: session.sub, status: "COMPLETED" },
+    },
+  });
+  if (!purchased) return;
+
+  await prisma.review.upsert({
+    where: { customerId_itemId: { customerId: session.sub, itemId } },
+    update: { rating, comment },
+    create: { customerId: session.sub, itemId, rating, comment },
+  });
+  revalidatePath(`/shop/${itemId}`);
 }
