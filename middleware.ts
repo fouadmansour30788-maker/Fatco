@@ -19,6 +19,14 @@ export async function middleware(req: NextRequest) {
   requestHeaders.set("x-pathname", pathname);
   const pass = () => NextResponse.next({ request: { headers: requestHeaders } });
 
+  // ---- API routes — each one handles its own auth (e.g. the WhatsApp
+  // webhook verifies Meta's signature itself). Never gate these behind the
+  // staff-session redirect below, or external callers just get bounced to
+  // an HTML /login page instead of reaching the route handler.
+  if (pathname.startsWith("/api/")) {
+    return pass();
+  }
+
   // ---- Client portal (customers) — separate auth from staff ----
   if (pathname === "/portal" || pathname.startsWith("/portal/")) {
     const isPortalPublic = pathname === "/portal/login";

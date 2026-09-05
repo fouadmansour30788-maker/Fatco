@@ -103,6 +103,12 @@ const en = {
     noVisits: "No visits recorded yet.",
     errorMissingFields: "Enter your phone number and PIN.",
     errorInvalidCredentials: "Phone number or PIN is incorrect.",
+    chatTitle: "Ask FATCO",
+    chatSubtitle: "Ask about your points, orders, service history, or our products.",
+    chatPlaceholder: "Type a message…",
+    chatSend: "Send",
+    chatEmpty: "Say hello — ask about your loyalty points, an order, or a product.",
+    chatLink: "Chat with FATCO",
   },
 };
 

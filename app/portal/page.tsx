@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { MessageCircle } from "lucide-react";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requirePortal } from "@/lib/session";
@@ -34,6 +36,14 @@ export default async function PortalDashboard() {
         </h1>
         <p className="text-sm text-zinc-500">{t.portal.accountSubtitle}</p>
       </div>
+
+      <Link
+        href="/portal/chat"
+        className="card flex items-center gap-3 border-brand/20 bg-brand/5 p-4 text-sm font-medium text-brand hover:bg-brand/10"
+      >
+        <MessageCircle size={18} />
+        {t.portal.chatLink}
+      </Link>
 
       {/* Points + rewards */}
       <div className="grid grid-cols-2 gap-4">

@@ -4,10 +4,9 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { setPortalSession, clearPortalSession } from "@/lib/session";
 import { getDictionary } from "@/lib/i18n";
+import { normalizePhone as digits } from "@/lib/phone";
 
 export type PortalLoginState = { error?: string };
-
-const digits = (s: string) => s.replace(/\D/g, "");
 
 export async function portalLogin(
   _prev: PortalLoginState,

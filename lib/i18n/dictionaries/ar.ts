@@ -105,6 +105,12 @@ const ar: Dictionary = {
     noVisits: "لا توجد زيارات مسجّلة بعد.",
     errorMissingFields: "أدخل رقم هاتفك والرمز السري.",
     errorInvalidCredentials: "رقم الهاتف أو الرمز السري غير صحيح.",
+    chatTitle: "اسأل فاتكو",
+    chatSubtitle: "اسأل عن نقاطك، طلباتك، سجل الخدمات، أو منتجاتنا.",
+    chatPlaceholder: "اكتب رسالة…",
+    chatSend: "إرسال",
+    chatEmpty: "قل مرحبًا — اسأل عن نقاط الولاء، طلب، أو منتج.",
+    chatLink: "تحدث مع فاتكو",
   },
 };
 

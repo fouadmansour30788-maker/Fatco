@@ -100,3 +100,9 @@ export type ItemKind = (typeof ITEM_KINDS)[number];
 
 export const BACK_IN_STOCK_STATUSES = ["PENDING", "NOTIFIED"] as const;
 export type BackInStockStatus = (typeof BACK_IN_STOCK_STATUSES)[number];
+
+export const CHAT_CHANNELS = ["PORTAL", "WHATSAPP"] as const;
+export type ChatChannel = (typeof CHAT_CHANNELS)[number];
+
+export const CHAT_ROLES = ["USER", "ASSISTANT"] as const;
+export type ChatRole = (typeof CHAT_ROLES)[number];

@@ -48,6 +48,7 @@ model Customer {
   rewards           Reward[]
   cartItems         CartItem[]
   backInStockAlerts BackInStockAlert[]
+  chatMessages      ChatMessage[]
 
   @@index([phone])
   @@index([type])
@@ -334,4 +335,24 @@ model ServiceReminder {
 
   @@index([vehicleId])
   @@index([dueDate])
+}
+
+// ---------- Phase 2: support chatbot (portal + WhatsApp) ----------
+// One conversation log for both channels. Portal conversations are keyed by
+// customerId (always known — the portal requires login); WhatsApp
+// conversations are keyed by phone (always known from the webhook payload),
+// with customerId filled in only once that number matches a real Customer —
+// see lib/chatbot.ts.
+model ChatMessage {
+  id         String    @id @default(cuid())
+  channel    String // PORTAL | WHATSAPP
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  phone      String? // WhatsApp only: normalized digits, set even without a customer match
+  role       String // USER | ASSISTANT
+  content    String
+  createdAt  DateTime  @default(now())
+
+  @@index([channel, customerId])
+  @@index([channel, phone])
 }
